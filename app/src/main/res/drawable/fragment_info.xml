@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <TableLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="16dp">
+
+        <!-- Row for Driver -->
+        <TableRow>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:padding="8dp"
+                android:text="Driver"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/driverText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:padding="8dp" />
+        </TableRow>
+
+        <!-- Row for Vendor -->
+        <TableRow>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:padding="8dp"
+                android:text="Vendor"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/vendorText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:padding="8dp" />
+        </TableRow>
+
+        <!-- Row for Product -->
+        <TableRow>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:padding="8dp"
+                android:text="Product %04X"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/productText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:padding="8dp" />
+        </TableRow>
+
+        <!-- Row for Device Id -->
+        <TableRow>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:padding="8dp"
+                android:text="Device Id"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/deviceIdText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:padding="8dp" />
+        </TableRow>
+
+        <!-- Row for Port -->
+        <TableRow>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:padding="8dp"
+                android:text="Port"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/portText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:padding="8dp" />
+        </TableRow>
+
+        <!-- Row for Baud -->
+        <TableRow>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:padding="8dp"
+                android:text="Baud"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/baudText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:padding="8dp" />
+        </TableRow>
+
+        <!-- Row for withIoManager -->
+        <TableRow>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:padding="8dp"
+                android:text="With IoManager"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/ioManagerText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:padding="8dp" />
+        </TableRow>
+
+    </TableLayout>
+</ScrollView>

@@ -20,6 +20,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "OpenGammaKitIdentifier"
+rootProject.name = "OpenGammaKitInspector"
 include(":app")
  

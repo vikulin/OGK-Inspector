@@ -6,7 +6,6 @@ import android.hardware.usb.*
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.view.*
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import com.hoho.android.usbserial.driver.*
@@ -84,10 +83,6 @@ abstract class SerialConnectionFragment : Fragment(), SerialInputOutputManager.L
             disconnect()
         }
         super.onPause()
-    }
-
-    override fun onCreateOptionsMenu(menu: Menu, inflater: MenuInflater) {
-        inflater.inflate(R.menu.menu_terminal, menu)
     }
 
     override fun onNewData(data: ByteArray?) {

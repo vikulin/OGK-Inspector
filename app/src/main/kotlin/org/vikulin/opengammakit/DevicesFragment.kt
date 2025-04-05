@@ -1,6 +1,3 @@
-package org.vikulin.opengammakit
-
-import android.app.AlertDialog
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -9,16 +6,23 @@ import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
 import android.os.Bundle
 import android.util.Log
-import android.view.*
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
 import android.widget.ArrayAdapter
+import android.widget.ImageButton
 import android.widget.ListView
 import android.widget.TextView
-import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.ListFragment
 import com.hoho.android.usbserial.driver.UsbSerialDriver
 import com.hoho.android.usbserial.driver.UsbSerialProber
-import java.util.*
+import org.vikulin.opengammakit.CustomProber
+import org.vikulin.opengammakit.InfoFragment
+import org.vikulin.opengammakit.R
+import org.vikulin.opengammakit.SpectrumChartFragment
+import org.vikulin.opengammakit.TerminalFragment
+import java.util.Locale
 
 class DevicesFragment : ListFragment() {
 
@@ -36,81 +40,101 @@ class DevicesFragment : ListFragment() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setHasOptionsMenu(true)
-        listAdapter = object : ArrayAdapter<ListItem>(requireActivity(), 0, listItems) {
+        listAdapter = object : ArrayAdapter<ListItem>(requireActivity(), R.layout.device_list_item, listItems) {
             override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
                 val item = listItems[position]
                 val view = convertView ?: layoutInflater.inflate(R.layout.device_list_item, parent, false)
-                val text1 = view.findViewById<TextView>(R.id.text1)
-                val text2 = view.findViewById<TextView>(R.id.text2)
-                text1.text = when {
+                val deviceLabel = view.findViewById<TextView>(R.id.deviceLabel)
+                val deviceId = view.findViewById<TextView>(R.id.deviceId)
+                val info = view.findViewById<ImageButton>(R.id.info)
+                val terminal = view.findViewById<ImageButton>(R.id.terminal)
+                val spectrometer = view.findViewById<ImageButton>(R.id.spectrometer)
+
+                val driver = when {
                     item.driver == null -> "<no driver>"
                     item.driver.ports.size == 1 -> item.driver.javaClass.simpleName.replace("SerialDriver", "")
                     else -> "${item.driver.javaClass.simpleName.replace("SerialDriver", "")}, Port ${item.port}"
                 }
-                text2.text = String.format(
-                    Locale.US,
-                    "Vendor %04X, Product %04X",
-                    item.device.vendorId,
-                    item.device.productId
-                )
+
+                val vendor = item.device.vendorId
+                val product = item.device.productId
+                deviceId.text = item.device.deviceId.toString()
+                terminal.setOnClickListener {
+                    val args = Bundle().apply {
+                        putInt("device", item.device.deviceId)
+                        putInt("port", item.port)
+                        putInt("baud", baudRate)
+                        putBoolean("withIoManager", withIoManager)
+                    }
+                    val fragment: Fragment = TerminalFragment()
+                    fragment.arguments = args
+                    parentFragmentManager.beginTransaction()
+                        .replace(R.id.fragment, fragment, "terminal")
+                        .addToBackStack(null)
+                        .commit()
+                }
+                spectrometer.setOnClickListener {
+                    val fragment: Fragment = SpectrumChartFragment()
+                    parentFragmentManager.beginTransaction()
+                        .replace(R.id.fragment, fragment, "spectrometer")
+                        .addToBackStack(null)
+                        .commit()
+                }
+                info.setOnClickListener {
+                    val args = Bundle().apply {
+                        putString("driver", driver)
+                        putString("vendor", String.format(
+                            Locale.US,
+                            "%04X",
+                            vendor
+                        ))
+                        putString("product",
+                            String.format(
+                                Locale.US,
+                                "%04X",
+                                product
+                            ))
+                        putInt("device", item.device.deviceId)
+                        putInt("port", item.port)
+                        putInt("baud", baudRate)
+                        putBoolean("withIoManager", withIoManager)
+                    }
+                    val fragment: Fragment = InfoFragment()
+                    fragment.arguments = args
+                    parentFragmentManager.beginTransaction()
+                        .replace(R.id.fragment, fragment, "info")
+                        .addToBackStack(null)
+                        .commit()
+                }
                 return view
             }
         }
     }
 
-    override fun onActivityCreated(savedInstanceState: Bundle?) {
-        super.onActivityCreated(savedInstanceState)
-        setListAdapter(null)
-        val header = layoutInflater.inflate(R.layout.device_list_header, null, false)
-        listView.addHeaderView(header, null, false)
-        setEmptyText("<no USB devices found>")
-        (listView.emptyView as TextView).textSize = 18f
-        setListAdapter(listAdapter)
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View? {
+        // Inflate the layout for this fragment
+        val view = inflater.inflate(R.layout.fragment_devices, container, false)
+
+        // Find the ListView and the empty TextView
+        val listView = view.findViewById<ListView>(android.R.id.list)
+        listView.emptyView = view.findViewById(R.id.empty)
+
+        return view
     }
 
-    override fun onCreateOptionsMenu(menu: Menu, inflater: MenuInflater) {
-        inflater.inflate(R.menu.menu_devices, menu)
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        setListAdapter(listAdapter)
     }
 
     override fun onResume() {
         super.onResume()
         refresh()
-    }
-
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        return when (item.itemId) {
-            R.id.refresh -> {
-                refresh()
-                true
-            }
-            R.id.baud_rate -> {
-                val values = resources.getStringArray(R.array.baud_rates)
-                val pos = values.indexOf(baudRate.toString())
-                AlertDialog.Builder(requireActivity())
-                    .setTitle("Baud rate")
-                    .setSingleChoiceItems(values, pos) { dialog, which ->
-                        baudRate = values[which].toInt()
-                        dialog.dismiss()
-                    }
-                    .create()
-                    .show()
-                true
-            }
-            R.id.read_mode -> {
-                val values = resources.getStringArray(R.array.read_modes)
-                val pos = if (withIoManager) 0 else 1
-                AlertDialog.Builder(requireActivity())
-                    .setTitle("Read mode")
-                    .setSingleChoiceItems(values, pos) { dialog, which ->
-                        withIoManager = which == 0
-                        dialog.dismiss()
-                    }
-                    .create()
-                    .show()
-                true
-            }
-            else -> super.onOptionsItemSelected(item)
-        }
     }
 
     private fun refresh() {
@@ -132,26 +156,6 @@ class DevicesFragment : ListFragment() {
             }
         }
         listAdapter.notifyDataSetChanged()
-    }
-
-    override fun onListItemClick(l: ListView, v: View, position: Int, id: Long) {
-        val item = listItems[position - 1]
-        if (item.driver == null) {
-            Toast.makeText(activity, "no driver", Toast.LENGTH_SHORT).show()
-        } else {
-            val args = Bundle().apply {
-                putInt("device", item.device.deviceId)
-                putInt("port", item.port)
-                putInt("baud", baudRate)
-                putBoolean("withIoManager", withIoManager)
-            }
-            val fragment: Fragment = TerminalFragment()
-            fragment.arguments = args
-            parentFragmentManager.beginTransaction()
-                .replace(R.id.fragment, fragment, "terminal")
-                .addToBackStack(null)
-                .commit()
-        }
     }
 
     private val usbReceiver = object : BroadcastReceiver() {

@@ -42,6 +42,7 @@ class TerminalFragment : SerialConnectionFragment() {
         return view
     }
 
+    @Deprecated("Deprecated in Java")
     override fun onCreateOptionsMenu(menu: Menu, inflater: MenuInflater) {
         inflater.inflate(R.menu.menu_terminal, menu)
     }
@@ -92,8 +93,7 @@ class TerminalFragment : SerialConnectionFragment() {
         try {
             val data = (str + '\n').toByteArray()
             val spn = SpannableStringBuilder().apply {
-                append("send ${data.size} bytes\n")
-                append(HexDump.dumpHexString(data)).append("\n")
+                append(">").append(str).append("\n")
                 setSpan(ForegroundColorSpan(resources.getColor(R.color.colorSendText)), 0, length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
             }
             receiveText.append(spn)
@@ -113,8 +113,7 @@ class TerminalFragment : SerialConnectionFragment() {
 
     override fun receive(data: ByteArray) {
         val spn = SpannableStringBuilder().apply {
-            append("receive ${data.size} bytes\n")
-            if (data.isNotEmpty()) append(HexDump.dumpHexString(data)).append("\n")
+            if (data.isNotEmpty()) append(String(data)).append("\n")
         }
         receiveText.append(spn)
     }

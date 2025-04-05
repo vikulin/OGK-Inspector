@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_title">OpenGammaKit Identifier</string>
+    <string name="app_title">OpenGammaKit Inspector</string>
     <string name="app_name">OGKI</string>
     <string name="devices">USB Devices</string>
 </resources>

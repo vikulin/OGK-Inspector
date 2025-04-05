@@ -15,6 +15,7 @@
         tools:ignore="AllowBackup,GoogleAppIndexingWarning">
         <activity
             android:name=".MainActivity"
+            android:label=""
             android:launchMode="singleTask"
             android:windowSoftInputMode="stateHidden|adjustResize"
             android:exported="true">
