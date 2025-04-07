@@ -2,11 +2,14 @@ package org.vikulin.opengammakit
 
 import android.content.res.Configuration
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
-import androidx.fragment.app.Fragment
+import android.widget.Toast
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.components.Description
 import com.github.mikephil.charting.components.XAxis
@@ -16,15 +19,16 @@ import com.github.mikephil.charting.data.LineDataSet
 import kotlinx.serialization.json.Json
 import org.vikulin.opengammakit.model.GammaKitData
 
-class SpectrumChartFragment : Fragment() {
+class SpectrumChartFragment : SerialConnectionFragment() {
 
     private lateinit var spectrumChart: LineChart
     private lateinit var deviceValue: TextView
     private lateinit var pulseCountValue: TextView
     private lateinit var measureTimeValue: TextView
+    private var spectrumDataSet: LineDataSet? = null
 
-    private val testJson: String by lazy {
-        requireContext().assets.open("test_spectrum.json").bufferedReader().use { it.readText() }
+    private val zeroedData: String by lazy {
+        requireContext().assets.open("spectrum_zeroed.json").bufferedReader().use { it.readText() }
     }
 
     override fun onCreateView(
@@ -37,7 +41,6 @@ class SpectrumChartFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Initialize Views
         spectrumChart = view.findViewById(R.id.spectrumChart)
         deviceValue = view.findViewById(R.id.deviceValue)
         pulseCountValue = view.findViewById(R.id.pulseCountValue)
@@ -45,19 +48,18 @@ class SpectrumChartFragment : Fragment() {
 
         setupChart()
 
-        // Update the table with values
-        updateTableWithValues()
+        val command = OpenGammaKitCommands().setOut("spectrum"+"\n").toByteArray()
+        super.send(command)
+
     }
 
-    private fun updateTableWithValues() {
-        val parsed = Json.decodeFromString<GammaKitData>(testJson)
+    private fun updateTableWithValues(parsed: GammaKitData) {
+        val data = parsed.data.firstOrNull() ?: return
 
-        // Extract values from parsed data
-        val deviceName = parsed.data[0].deviceData.deviceName ?: "Unknown Device"
-        val validPulseCount = parsed.data[0].resultData.energySpectrum.validPulseCount
-        val measurementTime = parsed.data[0].resultData.energySpectrum.measurementTime
+        val deviceName = data.deviceData.deviceName ?: "Unknown Device"
+        val validPulseCount = data.resultData.energySpectrum.validPulseCount
+        val measurementTime = data.resultData.energySpectrum.measurementTime
 
-        // Update TextViews with the extracted values
         deviceValue.text = deviceName
         pulseCountValue.text = validPulseCount.toString()
         measureTimeValue.text = formatTime(measurementTime)
@@ -66,30 +68,26 @@ class SpectrumChartFragment : Fragment() {
     private fun formatTime(seconds: Long): String {
         val minutes = (seconds / 60).toInt()
         val remainingSeconds = (seconds % 60).toInt()
-
-        return when {
-            minutes > 0 -> String.format("%dmin %02dsec", minutes, remainingSeconds)
-            else -> String.format("%dsec", remainingSeconds)
-        }
+        return if (minutes > 0) "%dmin %02dsec".format(minutes, remainingSeconds)
+        else "%dsec".format(remainingSeconds)
     }
 
     private fun setupChart() {
-        val parsed = Json.decodeFromString<GammaKitData>(testJson)
+        val parsed = Json.decodeFromString<GammaKitData>(zeroedData)
         val spectrum = parsed.data.firstOrNull()?.resultData?.energySpectrum ?: return
 
         val entries = spectrum.spectrum.mapIndexed { index, count ->
             Entry(index.toFloat(), count.toFloat())
         }
 
-        val dataSet = LineDataSet(entries, "Energy Spectrum").apply {
-            mode = LineDataSet.Mode.CUBIC_BEZIER  // interpolation for smooth curve
-            lineWidth = 2f
+        spectrumDataSet = LineDataSet(entries, "Energy Spectrum").apply {
+            mode = LineDataSet.Mode.CUBIC_BEZIER
+            lineWidth = 1.5f
             setDrawCircles(false)
             setDrawValues(false)
             color = resources.getColor(android.R.color.holo_blue_light, null)
         }
 
-        // Dynamically set colors based on the current theme
         val isNightMode = resources.configuration.uiMode and
                 Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
 
@@ -100,7 +98,7 @@ class SpectrumChartFragment : Fragment() {
         }
 
         spectrumChart.apply {
-            data = LineData(dataSet)
+            data = LineData(spectrumDataSet)
             xAxis.labelRotationAngle = 0f
             xAxis.position = XAxis.XAxisPosition.BOTTOM
             xAxis.textColor = primaryColor
@@ -111,18 +109,31 @@ class SpectrumChartFragment : Fragment() {
                 textColor = primaryColor
             }
             legend.textColor = primaryColor
-            invalidate()  // refresh chart
+            invalidate()
         }
 
         showResolutionRate(spectrum.spectrum)
     }
 
+    private fun updateChartData(parsed: GammaKitData) {
+        val spectrum = parsed.data.firstOrNull()?.resultData?.energySpectrum ?: return
+        val counts = spectrum.spectrum
+
+        val entries = counts.mapIndexed { index, count ->
+            Entry(index.toFloat(), count.toFloat())
+        }
+
+        spectrumDataSet?.let {
+            it.values = entries
+            spectrumChart.data.notifyDataChanged()
+            spectrumChart.notifyDataSetChanged()
+            spectrumChart.invalidate()
+        }
+    }
+
     private fun showResolutionRate(counts: List<Int>) {
-        // Very basic resolution estimation
         val max = counts.maxOrNull() ?: return
         val maxIndex = counts.indexOf(max)
-
-        // Find half max value indices (FWHM approximation)
         val halfMax = max / 2.0
         var left = maxIndex
         while (left > 0 && counts[left] > halfMax) left--
@@ -140,5 +151,27 @@ class SpectrumChartFragment : Fragment() {
         )
 
         spectrumChart.description.text += "\nResolution: %.2f%%".format(resolutionPercent)
+    }
+
+    override fun read() {
+        if (!connected) {
+            Toast.makeText(activity, "not connected", Toast.LENGTH_SHORT).show()
+            return
+        }
+        super.read()
+    }
+
+    override fun receive(bytes: ByteArray) {
+        Log.d("Test","received ${bytes.size} bytes")
+        if (bytes.isNotEmpty()) {
+            val spectrum = String(bytes)
+            //val parsed = Json.decodeFromString<GammaKitData>(spectrum)
+            //updateTableWithValues(parsed)
+            //updateChartData(parsed)
+        }
+    }
+
+    override fun status(str: String) {
+        //TODO implement
     }
 }

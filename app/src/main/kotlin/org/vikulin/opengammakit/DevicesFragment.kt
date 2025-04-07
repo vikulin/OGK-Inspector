@@ -74,7 +74,14 @@ class DevicesFragment : ListFragment() {
                         .commit()
                 }
                 spectrometer.setOnClickListener {
+                    val args = Bundle().apply {
+                        putInt("device", item.device.deviceId)
+                        putInt("port", item.port)
+                        putInt("baud", baudRate)
+                        putBoolean("withIoManager", withIoManager)
+                    }
                     val fragment: Fragment = SpectrumChartFragment()
+                    fragment.arguments = args
                     parentFragmentManager.beginTransaction()
                         .replace(R.id.fragment, fragment, "spectrometer")
                         .addToBackStack(null)

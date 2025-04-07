@@ -12,18 +12,28 @@ import android.widget.TextView
 import android.widget.Toast
 import android.widget.ToggleButton
 import com.hoho.android.usbserial.driver.*
-import com.hoho.android.usbserial.util.HexDump
 import java.io.IOException
+import java.util.EnumSet
 
 class TerminalFragment : SerialConnectionFragment() {
 
-    private lateinit var receiveText: TextView
-    private lateinit var controlLines: ControlLines
+    private lateinit var rtsBtn: ToggleButton
+    private lateinit var ctsBtn: ToggleButton
+    private lateinit var dtrBtn: ToggleButton
+    private lateinit var dsrBtn: ToggleButton
+    private lateinit var cdBtn: ToggleButton
+    private lateinit var riBtn: ToggleButton
 
-    private val mainLooper = Handler(Looper.getMainLooper())
+    private lateinit var receiveText: TextView
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         val view = inflater.inflate(R.layout.fragment_terminal, container, false)
+        rtsBtn = view.findViewById(R.id.controlLineRts)
+        ctsBtn = view.findViewById(R.id.controlLineCts)
+        dtrBtn = view.findViewById(R.id.controlLineDtr)
+        dsrBtn = view.findViewById(R.id.controlLineDsr)
+        cdBtn = view.findViewById(R.id.controlLineCd)
+        riBtn = view.findViewById(R.id.controlLineRi)
         receiveText = view.findViewById(R.id.receive_text)
         receiveText.setTextColor(resources.getColor(R.color.colorRecieveText))
         receiveText.movementMethod = ScrollingMovementMethod.getInstance()
@@ -33,13 +43,34 @@ class TerminalFragment : SerialConnectionFragment() {
         sendBtn.setOnClickListener { send(sendText.text.toString()) }
 
         val receiveBtn: View = view.findViewById(R.id.receive_btn)
-        controlLines = ControlLines(view)
+
         if (withIoManager) {
             receiveBtn.visibility = View.GONE
         } else {
             receiveBtn.setOnClickListener { read() }
         }
+
+        rtsBtn.setOnClickListener(::toggle)
+        dtrBtn.setOnClickListener(::toggle)
+
         return view
+    }
+
+    private fun toggle(v: View) {
+        val btn = v as ToggleButton
+        if (!connected) {
+            btn.isChecked = !btn.isChecked
+            Toast.makeText(activity, "not connected", Toast.LENGTH_SHORT).show()
+            return
+        }
+        try {
+            when (btn) {
+                rtsBtn -> setRts(btn.isChecked)
+                dtrBtn -> setDtr(btn.isChecked)
+            }
+        } catch (e: IOException) {
+            status("set ${btn.text}() failed: ${e.message}")
+        }
     }
 
     @Deprecated("Deprecated in Java")
@@ -77,14 +108,6 @@ class TerminalFragment : SerialConnectionFragment() {
         }
     }
 
-    override fun controlLinesStop() {
-        controlLines.stop()
-    }
-
-    override fun controlLinesStart() {
-        controlLines.start()
-    }
-
     private fun send(str: String) {
         if (!connected) {
             Toast.makeText(activity, "not connected", Toast.LENGTH_SHORT).show()
@@ -112,6 +135,7 @@ class TerminalFragment : SerialConnectionFragment() {
     }
 
     override fun receive(data: ByteArray) {
+        //Log.d("TerminalFragment","received ${data.size} bytes")
         val spn = SpannableStringBuilder().apply {
             if (data.isNotEmpty()) append(String(data)).append("\n")
         }
@@ -125,76 +149,33 @@ class TerminalFragment : SerialConnectionFragment() {
         receiveText.append(spn)
     }
 
-    inner class ControlLines(view: View) {
-        private val refreshInterval = 200L
+    override fun controlLines(values: EnumSet<UsbSerialPort.ControlLine?>) {
+        super.controlLines(values)
+        rtsBtn.isChecked = values.contains(UsbSerialPort.ControlLine.RTS)
+        ctsBtn.isChecked = values.contains(UsbSerialPort.ControlLine.CTS)
+        dtrBtn.isChecked = values.contains(UsbSerialPort.ControlLine.DTR)
+        dsrBtn.isChecked = values.contains(UsbSerialPort.ControlLine.DSR)
+        cdBtn.isChecked = values.contains(UsbSerialPort.ControlLine.CD)
+        riBtn.isChecked = values.contains(UsbSerialPort.ControlLine.RI)
+    }
 
-        private val rtsBtn: ToggleButton = view.findViewById(R.id.controlLineRts)
-        private val ctsBtn: ToggleButton = view.findViewById(R.id.controlLineCts)
-        private val dtrBtn: ToggleButton = view.findViewById(R.id.controlLineDtr)
-        private val dsrBtn: ToggleButton = view.findViewById(R.id.controlLineDsr)
-        private val cdBtn: ToggleButton = view.findViewById(R.id.controlLineCd)
-        private val riBtn: ToggleButton = view.findViewById(R.id.controlLineRi)
-
-        private val runnable = Runnable { run() }
-
-        init {
-            rtsBtn.setOnClickListener(::toggle)
-            dtrBtn.setOnClickListener(::toggle)
+    override fun supportedControlLines(values: EnumSet<UsbSerialPort.ControlLine?>) {
+        super.supportedControlLines(values)
+        try {
+            if (UsbSerialPort.ControlLine.RTS !in values) rtsBtn.visibility = View.INVISIBLE
+            if (UsbSerialPort.ControlLine.CTS !in values) ctsBtn.visibility = View.INVISIBLE
+            if (UsbSerialPort.ControlLine.DTR !in values) dtrBtn.visibility = View.INVISIBLE
+            if (UsbSerialPort.ControlLine.DSR !in values) dsrBtn.visibility = View.INVISIBLE
+            if (UsbSerialPort.ControlLine.CD !in values) cdBtn.visibility = View.INVISIBLE
+            if (UsbSerialPort.ControlLine.RI !in values) riBtn.visibility = View.INVISIBLE
+        } catch (e: Exception) {
+            Toast.makeText(activity, "getSupportedControlLines() failed: ${e.message}", Toast.LENGTH_SHORT).show()
+            listOf(rtsBtn, ctsBtn, dtrBtn, dsrBtn, cdBtn, riBtn).forEach { it.visibility = View.INVISIBLE }
         }
+    }
 
-        private fun toggle(v: View) {
-            val btn = v as ToggleButton
-            if (!connected) {
-                btn.isChecked = !btn.isChecked
-                Toast.makeText(activity, "not connected", Toast.LENGTH_SHORT).show()
-                return
-            }
-            try {
-                when (btn) {
-                    rtsBtn -> setRts(btn.isChecked)
-                    dtrBtn -> setDtr(btn.isChecked)
-                }
-            } catch (e: IOException) {
-                status("set ${btn.text}() failed: ${e.message}")
-            }
-        }
-
-        private fun run() {
-            if (!connected) return
-            try {
-                val controlLines = getControlLines() ?: return
-                rtsBtn.isChecked = controlLines.contains(UsbSerialPort.ControlLine.RTS)
-                ctsBtn.isChecked = controlLines.contains(UsbSerialPort.ControlLine.CTS)
-                dtrBtn.isChecked = controlLines.contains(UsbSerialPort.ControlLine.DTR)
-                dsrBtn.isChecked = controlLines.contains(UsbSerialPort.ControlLine.DSR)
-                cdBtn.isChecked = controlLines.contains(UsbSerialPort.ControlLine.CD)
-                riBtn.isChecked = controlLines.contains(UsbSerialPort.ControlLine.RI)
-                mainLooper.postDelayed(runnable, refreshInterval)
-            } catch (e: Exception) {
-                status("getControlLines() failed: ${e.message} -> stopped control line refresh")
-            }
-        }
-
-        fun start() {
-            if (!connected) return
-            try {
-                val supported = getSupportedControlLines() ?: return
-                if (UsbSerialPort.ControlLine.RTS !in supported) rtsBtn.visibility = View.INVISIBLE
-                if (UsbSerialPort.ControlLine.CTS !in supported) ctsBtn.visibility = View.INVISIBLE
-                if (UsbSerialPort.ControlLine.DTR !in supported) dtrBtn.visibility = View.INVISIBLE
-                if (UsbSerialPort.ControlLine.DSR !in supported) dsrBtn.visibility = View.INVISIBLE
-                if (UsbSerialPort.ControlLine.CD !in supported) cdBtn.visibility = View.INVISIBLE
-                if (UsbSerialPort.ControlLine.RI !in supported) riBtn.visibility = View.INVISIBLE
-                run()
-            } catch (e: Exception) {
-                Toast.makeText(activity, "getSupportedControlLines() failed: ${e.message}", Toast.LENGTH_SHORT).show()
-                listOf(rtsBtn, ctsBtn, dtrBtn, dsrBtn, cdBtn, riBtn).forEach { it.visibility = View.INVISIBLE }
-            }
-        }
-
-        fun stop() {
-            mainLooper.removeCallbacks(runnable)
-            listOf(rtsBtn, ctsBtn, dtrBtn, dsrBtn, cdBtn, riBtn).forEach { it.isChecked = false }
-        }
+    override fun stopCommunication() {
+        super.stopCommunication()
+        listOf(rtsBtn, ctsBtn, dtrBtn, dsrBtn, cdBtn, riBtn).forEach { it.isChecked = false }
     }
 }

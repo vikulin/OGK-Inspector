@@ -6,6 +6,8 @@ import android.hardware.usb.*
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.View
+import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import com.hoho.android.usbserial.driver.*
@@ -28,6 +30,7 @@ abstract class SerialConnectionFragment : Fragment(), SerialInputOutputManager.L
     internal var withIoManager = false
 
     private val mainLooper = Handler(Looper.getMainLooper())
+    private lateinit var controlLines: ControlLines
 
     private var usbIoManager: SerialInputOutputManager? = null
     private var usbSerialPort: UsbSerialPort? = null
@@ -54,6 +57,7 @@ abstract class SerialConnectionFragment : Fragment(), SerialInputOutputManager.L
             baudRate = it.getInt("baud")
             withIoManager = it.getBoolean("withIoManager")
         }
+        controlLines = ControlLines()
     }
 
     override fun onStart() {
@@ -159,19 +163,15 @@ abstract class SerialConnectionFragment : Fragment(), SerialInputOutputManager.L
 
             status("connected")
             connected = true
-            controlLinesStart()
+            controlLines.start()
         } catch (e: Exception) {
             status("connection failed: ${e.message}")
             disconnect()
         }
     }
 
-    abstract fun controlLinesStop()
-
-    abstract fun controlLinesStart()
-
     internal fun disconnect() {
-        controlLinesStop()
+        controlLines.stop()
         connected = false
         usbIoManager?.apply {
             listener = null
@@ -215,13 +215,63 @@ abstract class SerialConnectionFragment : Fragment(), SerialInputOutputManager.L
         usbSerialPort?.dtr = dtr
     }
 
-    internal open fun getControlLines(): EnumSet<UsbSerialPort.ControlLine?>? {
+    private fun getControlLines(): EnumSet<UsbSerialPort.ControlLine?>? {
         return usbSerialPort?.controlLines
     }
 
-    internal open fun getSupportedControlLines(): EnumSet<UsbSerialPort.ControlLine?>? {
+    private fun getSupportedControlLines(): EnumSet<UsbSerialPort.ControlLine?>? {
         return usbSerialPort?.supportedControlLines
     }
 
     abstract fun status(str: String)
+
+    open fun controlLines(values: EnumSet<UsbSerialPort.ControlLine?>) {
+
+    }
+
+    open fun supportedControlLines(values: EnumSet<UsbSerialPort.ControlLine?>) {
+
+    }
+
+    open fun stopCommunication(){
+
+    }
+
+    inner class ControlLines() {
+        private val refreshInterval = 200L
+
+        private val runnable = Runnable { run() }
+
+        private fun run() {
+            if (!connected) return
+            try {
+                val values = getControlLines()
+                if(values!=null){
+                    controlLines(values)
+                }
+                mainLooper.postDelayed(runnable, refreshInterval)
+            } catch (e: Exception) {
+                status("getControlLines() failed: ${e.message} -> stopped control line refresh")
+            }
+        }
+
+        fun start() {
+            if (!connected) return
+            try {
+
+                val values = getSupportedControlLines()
+                if(values!=null){
+                    supportedControlLines(values)
+                }
+                run()
+            } catch (e: Exception) {
+                Toast.makeText(activity, "getSupportedControlLines() failed: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        fun stop() {
+            mainLooper.removeCallbacks(runnable)
+            SerialConnectionFragment@stopCommunication()
+        }
+    }
 }
