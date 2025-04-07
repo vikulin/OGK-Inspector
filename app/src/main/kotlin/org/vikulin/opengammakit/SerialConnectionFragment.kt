@@ -6,7 +6,6 @@ import android.hardware.usb.*
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.view.View
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
@@ -17,12 +16,11 @@ import java.util.EnumSet
 
 abstract class SerialConnectionFragment : Fragment(), SerialInputOutputManager.Listener {
 
-    private val WRITE_WAIT_MILLIS = 2000
-    private val READ_WAIT_MILLIS = 2000
-
     private enum class UsbPermission { Unknown, Requested, Granted, Denied }
 
     private val INTENT_ACTION_GRANT_USB = BuildConfig.APPLICATION_ID + ".GRANT_USB"
+    private val WRITE_WAIT_MILLIS = 2000
+    private val READ_WAIT_MILLIS = 2000
 
     private var deviceId = 0
     private var portNum = 0
