@@ -45,10 +45,18 @@ class SpectrumChartFragment : SerialConnectionFragment() {
         measureTimeValue = view.findViewById(R.id.measureTimeValue)
 
         setupChart()
+    }
 
-        val command = OpenGammaKitCommands().setOut("spectrum"+"\n").toByteArray()
+    override fun onConnectionSuccess() {
+        super.onConnectionSuccess()
+        super.setDtr(true)
+        val command = OpenGammaKitCommands().setOut("spectrum" + '\n').toByteArray()
         super.send(command)
+    }
 
+    override fun onConnectionFailed() {
+        super.onConnectionFailed()
+        // Add a message here
     }
 
     private fun updateTableWithValues(parsed: GammaKitData) {

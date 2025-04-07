@@ -162,10 +162,20 @@ abstract class SerialConnectionFragment : Fragment(), SerialInputOutputManager.L
             status("connected")
             connected = true
             controlLines.start()
+            onConnectionSuccess()
         } catch (e: Exception) {
             status("connection failed: ${e.message}")
             disconnect()
+            onConnectionFailed()
         }
+    }
+
+    open fun onConnectionSuccess() {
+
+    }
+
+    open fun onConnectionFailed() {
+
     }
 
     internal fun disconnect() {
