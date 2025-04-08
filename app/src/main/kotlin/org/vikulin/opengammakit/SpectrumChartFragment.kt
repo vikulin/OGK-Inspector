@@ -8,6 +8,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import android.widget.Toast
+import androidx.fragment.app.Fragment
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.components.Description
 import com.github.mikephil.charting.components.XAxis
@@ -15,7 +16,6 @@ import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
 import org.vikulin.opengammakit.model.GammaKitData
 
 class SpectrumChartFragment : SerialConnectionFragment() {
@@ -189,7 +189,7 @@ class SpectrumChartFragment : SerialConnectionFragment() {
         //Log.d("Test","received ${bytes.size}")
         if (bytes.isNotEmpty()) {
             val inputString = bytes.toString(Charsets.UTF_8)
-            //Log.d("Test","received ${bytes.toString(Charsets.UTF_8)}")
+            Log.d("Test","received ${bytes.toString(Charsets.UTF_8)}")
             val EOF = '\uFFFF'
             for (char in inputString) {
                 when (char) {
@@ -235,5 +235,23 @@ class SpectrumChartFragment : SerialConnectionFragment() {
 
     override fun status(str: String) {
         //TODO implement
+    }
+
+
+    override fun onStop() {
+        super.onStop()
+        val args = Bundle().apply {
+            putInt("device", deviceId)
+            putInt("port", portNum)
+            putInt("baud", baudRate)
+            putBoolean("withIoManager", withIoManager)
+            putString("command", "set out off\n")
+        }
+        val fragment: Fragment = SerialCommandFragment()
+        fragment.arguments = args
+        parentFragmentManager.beginTransaction()
+            .replace(R.id.fragment, fragment, "command")
+            .addToBackStack(null)
+            .commit()
     }
 }

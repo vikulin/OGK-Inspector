@@ -22,9 +22,9 @@ abstract class SerialConnectionFragment : Fragment(), SerialInputOutputManager.L
     private val WRITE_WAIT_MILLIS = 2000
     private val READ_WAIT_MILLIS = 2000
 
-    private var deviceId = 0
-    private var portNum = 0
-    private var baudRate = 0
+    internal var deviceId = 0
+    internal var portNum = 0
+    internal var baudRate = 0
     internal var withIoManager = false
 
     private val mainLooper = Handler(Looper.getMainLooper())
