@@ -189,7 +189,7 @@ class SpectrumChartFragment : SerialConnectionFragment() {
         //Log.d("Test","received ${bytes.size}")
         if (bytes.isNotEmpty()) {
             val inputString = bytes.toString(Charsets.UTF_8)
-            Log.d("Test","received ${bytes.toString(Charsets.UTF_8)}")
+            //Log.d("Test","received ${bytes.toString(Charsets.UTF_8)}")
             val EOF = '\uFFFF'
             for (char in inputString) {
                 when (char) {
