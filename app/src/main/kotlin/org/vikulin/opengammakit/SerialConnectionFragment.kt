@@ -245,6 +245,15 @@ abstract class SerialConnectionFragment : Fragment(), SerialInputOutputManager.L
 
     }
 
+    open fun getBundle(): Bundle {
+        return Bundle().apply {
+            putInt("device", deviceId)
+            putInt("port", portNum)
+            putInt("baud", baudRate)
+            putBoolean("withIoManager", withIoManager)
+        }
+    }
+
     inner class ControlLines() {
         private val refreshInterval = 200L
 

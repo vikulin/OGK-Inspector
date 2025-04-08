@@ -1,13 +1,12 @@
 package org.vikulin.opengammakit
 
 import android.os.Bundle
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ListView
 import android.widget.SimpleAdapter
-import android.widget.TextView
+import org.vikulin.opengammakit.model.OpenGammaKitCommands
 import kotlin.collections.component1
 import kotlin.collections.component2
 

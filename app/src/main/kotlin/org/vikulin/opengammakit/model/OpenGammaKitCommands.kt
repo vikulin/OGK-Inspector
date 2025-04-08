@@ -1,4 +1,4 @@
-package org.vikulin.opengammakit
+package org.vikulin.opengammakit.model
 
 class OpenGammaKitCommands {
     fun readSpectrum(): String = "read spectrum"

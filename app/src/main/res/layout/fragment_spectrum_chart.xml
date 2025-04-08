@@ -90,13 +90,13 @@
                 android:textStyle="bold"
                 android:layout_marginEnd="8dp"/>
 
-            <TextView
-                android:id="@+id/measureTimeValue"
+            <Chronometer
+                android:id="@+id/measureTimer"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="00min 00sec"
                 android:textColor="#FFFFFF"
-                android:textSize="16sp"/>
+                android:textSize="16sp"
+                android:textStyle="bold" />
         </LinearLayout>
     </LinearLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>

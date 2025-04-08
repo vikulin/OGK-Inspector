@@ -29,6 +29,6 @@ data class ResultData(
 data class EnergySpectrum(
     val numberOfChannels: Int,
     val measurementTime: Long,
-    val spectrum: List<Int>,
+    val spectrum: List<Long>,
     val validPulseCount: Long,
 )

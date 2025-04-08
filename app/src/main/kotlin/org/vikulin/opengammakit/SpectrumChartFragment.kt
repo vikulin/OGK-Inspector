@@ -2,10 +2,12 @@ package org.vikulin.opengammakit
 
 import android.content.res.Configuration
 import android.os.Bundle
+import android.os.SystemClock
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Chronometer
 import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
@@ -17,14 +19,16 @@ import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import kotlinx.serialization.json.Json
 import org.vikulin.opengammakit.model.GammaKitData
+import org.vikulin.opengammakit.model.OpenGammaKitCommands
 
 class SpectrumChartFragment : SerialConnectionFragment() {
 
     private lateinit var spectrumChart: LineChart
     private lateinit var deviceValue: TextView
     private lateinit var pulseCountValue: TextView
-    private lateinit var measureTimeValue: TextView
+    private lateinit var measureTimer: Chronometer
     private var spectrumDataSet: LineDataSet? = null
+    private var pauseOffset: Long = 0
 
     private val zeroedData: String by lazy {
         requireContext().assets.open("spectrum_zeroed.json").bufferedReader().use { it.readText() }
@@ -43,7 +47,7 @@ class SpectrumChartFragment : SerialConnectionFragment() {
         spectrumChart = view.findViewById(R.id.spectrumChart)
         deviceValue = view.findViewById(R.id.deviceValue)
         pulseCountValue = view.findViewById(R.id.pulseCountValue)
-        measureTimeValue = view.findViewById(R.id.measureTimeValue)
+        measureTimer = view.findViewById(R.id.measureTimer)
 
         setupChart()
     }
@@ -58,25 +62,6 @@ class SpectrumChartFragment : SerialConnectionFragment() {
     override fun onConnectionFailed() {
         super.onConnectionFailed()
         // Add a message here
-    }
-
-    private fun updateTableWithValues(parsed: GammaKitData) {
-        val data = parsed.data.firstOrNull() ?: return
-
-        val deviceName = data.deviceData.deviceName ?: "Unknown Device"
-        val validPulseCount = data.resultData.energySpectrum.validPulseCount
-        val measurementTime = data.resultData.energySpectrum.measurementTime
-
-        deviceValue.text = deviceName
-        pulseCountValue.text = validPulseCount.toString()
-        measureTimeValue.text = formatTime(measurementTime)
-    }
-
-    private fun formatTime(seconds: Long): String {
-        val minutes = (seconds / 60).toInt()
-        val remainingSeconds = (seconds % 60).toInt()
-        return if (minutes > 0) "%dmin %02dsec".format(minutes, remainingSeconds)
-        else "%dsec".format(remainingSeconds)
     }
 
     private fun setupChart() {
@@ -138,7 +123,7 @@ class SpectrumChartFragment : SerialConnectionFragment() {
         }
     }
 
-    private fun updateChartSpectrumData(parsed: List<Int>) {
+    private fun updateChartSpectrumData(parsed: List<Long>) {
 
         val entries = parsed.mapIndexed { index, count ->
             Entry(index.toFloat(), count.toFloat())
@@ -152,7 +137,11 @@ class SpectrumChartFragment : SerialConnectionFragment() {
         }
     }
 
-    private fun showResolutionRate(counts: List<Int>) {
+    private fun updateCounts(counts: Long){
+        pulseCountValue.text = counts.toString()
+    }
+
+    private fun showResolutionRate(counts: List<Long>) {
         val max = counts.maxOrNull() ?: return
         val maxIndex = counts.indexOf(max)
         val halfMax = max / 2.0
@@ -214,10 +203,12 @@ class SpectrumChartFragment : SerialConnectionFragment() {
                         val json = Json {
                             allowTrailingComma = true // Enables trailing commas in JSON parsing
                         }
-                        val parsed = json.decodeFromString<List<Int>>(buffer.toString())
-                        Log.d("Test", "List size: ${parsed.size}, counts: ${parsed.fold(0) { acc, num -> acc + num }}")
+                        val parsed = json.decodeFromString<List<Long>>(buffer.toString())
+                        val counts = parsed.fold(0L) { acc, num -> acc + num }
+                        Log.d("Test", "List size: ${parsed.size}, counts: $counts")
                         buffer.clear()
                         updateChartSpectrumData(parsed)
+                        updateCounts(counts)
                     } catch (e: Exception) {
                         Log.e("Test", "Failed to parse JSON: ${e.message}")
                         Log.d("Test",buffer.toString())
@@ -237,14 +228,30 @@ class SpectrumChartFragment : SerialConnectionFragment() {
         //TODO implement
     }
 
+    private fun startTimer() {
+        measureTimer.base = SystemClock.elapsedRealtime() - pauseOffset
+        measureTimer.start()
+    }
 
-    override fun onStop() {
-        super.onStop()
-        val args = Bundle().apply {
-            putInt("device", deviceId)
-            putInt("port", portNum)
-            putInt("baud", baudRate)
-            putBoolean("withIoManager", withIoManager)
+    private fun pauseTimer() {
+        measureTimer.stop()
+        pauseOffset = SystemClock.elapsedRealtime() - measureTimer.base
+
+    }
+
+    override fun onPause() {
+        super.onPause()
+        pauseTimer() // Automatically pause the timer when the fragment is paused
+    }
+
+    override fun onResume() {
+        super.onResume()
+        startTimer() // Automatically resume the timer when the fragment is visible again
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        val args = getBundle().apply {
             putString("command", "set out off\n")
         }
         val fragment: Fragment = SerialCommandFragment()
