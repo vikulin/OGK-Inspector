@@ -15,6 +15,7 @@ import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import org.vikulin.opengammakit.model.GammaKitData
 
 class SpectrumChartFragment : SerialConnectionFragment() {
@@ -137,6 +138,20 @@ class SpectrumChartFragment : SerialConnectionFragment() {
         }
     }
 
+    private fun updateChartSpectrumData(parsed: List<Int>) {
+
+        val entries = parsed.mapIndexed { index, count ->
+            Entry(index.toFloat(), count.toFloat())
+        }
+
+        spectrumDataSet?.let {
+            it.values = entries
+            spectrumChart.data.notifyDataChanged()
+            spectrumChart.notifyDataSetChanged()
+            spectrumChart.invalidate()
+        }
+    }
+
     private fun showResolutionRate(counts: List<Int>) {
         val max = counts.maxOrNull() ?: return
         val maxIndex = counts.indexOf(max)
@@ -167,13 +182,54 @@ class SpectrumChartFragment : SerialConnectionFragment() {
         super.read()
     }
 
+    private val buffer = StringBuilder()
+    private var openBraces = 0
+
     override fun receive(bytes: ByteArray) {
-        Log.d("Test","received ${bytes.size} bytes")
+        //Log.d("Test","received ${bytes.size}")
         if (bytes.isNotEmpty()) {
-            val spectrum = String(bytes)
-            //val parsed = Json.decodeFromString<GammaKitData>(spectrum)
-            //updateTableWithValues(parsed)
-            //updateChartData(parsed)
+            val inputString = bytes.toString(Charsets.UTF_8)
+            //Log.d("Test","received ${bytes.toString(Charsets.UTF_8)}")
+            val EOF = '\uFFFF'
+            for (char in inputString) {
+                when (char) {
+                    '[' -> {
+                        openBraces++
+                        buffer.append(char)
+                    }
+                    ']' -> {
+                        openBraces--
+                        buffer.append(char)
+                    }
+                    EOF -> {}
+                    '\r' -> {}
+                    '\n' -> {}
+                    else -> {
+                        buffer.append(char)
+                    }
+                }
+
+                if (openBraces == 0 && buffer.isNotEmpty()) {
+                    try {
+                        val json = Json {
+                            allowTrailingComma = true // Enables trailing commas in JSON parsing
+                        }
+                        val parsed = json.decodeFromString<List<Int>>(buffer.toString())
+                        Log.d("Test", "List size: ${parsed.size}, counts: ${parsed.fold(0) { acc, num -> acc + num }}")
+                        buffer.clear()
+                        updateChartSpectrumData(parsed)
+                    } catch (e: Exception) {
+                        Log.e("Test", "Failed to parse JSON: ${e.message}")
+                        Log.d("Test",buffer.toString())
+                        buffer.clear() // Discard malformed or incomplete JSON
+                    }
+                }
+                if(openBraces>1 || openBraces<0){
+                    Log.e("Test", "openBraces issue: $buffer")
+                    buffer.clear() // Discard malformed or incomplete JSON
+                    openBraces = 0
+                }
+            }
         }
     }
 
