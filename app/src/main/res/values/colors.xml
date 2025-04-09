@@ -9,4 +9,6 @@
     <color name="colorRecieveText">#00FF00</color>
     <color name="colorSendText">#82CAFF</color>
     <color name="colorStatusText">#FFDB58</color>
+    <color name="fillPeakRegionDay">#EE8BC34A</color> <!-- light green with alpha -->
+    <color name="fillPeakRegionNight">#EEFF9800</color> <!-- orange with alpha -->
 </resources>

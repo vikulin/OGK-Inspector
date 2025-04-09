@@ -1,25 +1,35 @@
 package org.vikulin.opengammakit
 
 import android.content.res.Configuration
+import android.graphics.Color
 import android.os.Bundle
 import android.os.SystemClock
 import android.util.Log
+import android.view.GestureDetector
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Chronometer
 import android.widget.TextView
 import android.widget.Toast
+import androidx.core.view.GestureDetectorCompat
 import androidx.fragment.app.Fragment
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.components.Description
+import com.github.mikephil.charting.components.LimitLine
 import com.github.mikephil.charting.components.XAxis
+import com.github.mikephil.charting.components.YAxis
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
+import com.github.mikephil.charting.highlight.Highlight
 import kotlinx.serialization.json.Json
 import org.vikulin.opengammakit.model.GammaKitData
 import org.vikulin.opengammakit.model.OpenGammaKitCommands
+import org.vikulin.opengammakit.view.ResolutionMarkerView
+import kotlin.math.abs
+import kotlin.properties.Delegates
 
 class SpectrumChartFragment : SerialConnectionFragment() {
 
@@ -29,6 +39,9 @@ class SpectrumChartFragment : SerialConnectionFragment() {
     private lateinit var measureTimer: Chronometer
     private var spectrumDataSet: LineDataSet? = null
     private var pauseOffset: Long = 0
+    private var verticalLimitLine: LimitLine? = null
+    private var horizontalLimitLine: LimitLine? = null
+    private var isNightMode by Delegates.notNull<Boolean>()
 
     private val zeroedData: String by lazy {
         requireContext().assets.open("spectrum_zeroed.json").bufferedReader().use { it.readText() }
@@ -38,6 +51,8 @@ class SpectrumChartFragment : SerialConnectionFragment() {
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
+        isNightMode = resources.configuration.uiMode and
+                Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
         return inflater.inflate(R.layout.fragment_spectrum_chart, container, false)
     }
 
@@ -50,6 +65,9 @@ class SpectrumChartFragment : SerialConnectionFragment() {
         measureTimer = view.findViewById(R.id.measureTimer)
 
         setupChart()
+
+        val marker = ResolutionMarkerView(requireContext(), R.layout.marker_resolution)
+        spectrumChart.marker = marker
     }
 
     override fun onConnectionSuccess() {
@@ -80,9 +98,6 @@ class SpectrumChartFragment : SerialConnectionFragment() {
             color = resources.getColor(android.R.color.holo_blue_light, null)
         }
 
-        val isNightMode = resources.configuration.uiMode and
-                Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
-
         val primaryColor = if (isNightMode) {
             resources.getColor(R.color.colorPrimaryNight, null)
         } else {
@@ -104,22 +119,24 @@ class SpectrumChartFragment : SerialConnectionFragment() {
             invalidate()
         }
 
-        showResolutionRate(spectrum.spectrum)
+        setupChartTouchListener()
     }
 
-    private fun updateChartData(parsed: GammaKitData) {
-        val spectrum = parsed.data.firstOrNull()?.resultData?.energySpectrum ?: return
-        val counts = spectrum.spectrum
+    private fun setupChartTouchListener() {
+        val gestureDetector = GestureDetectorCompat(requireContext(), object : GestureDetector.SimpleOnGestureListener() {
+            override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+                // Translate touch point and handle pick selection
+                handleChartTap(e.x)
+                return true
+            }
+        })
 
-        val entries = counts.mapIndexed { index, count ->
-            Entry(index.toFloat(), count.toFloat())
-        }
+        spectrumChart.setOnTouchListener { v, event ->
+            // Let gestureDetector process it
+            gestureDetector.onTouchEvent(event)
 
-        spectrumDataSet?.let {
-            it.values = entries
-            spectrumChart.data.notifyDataChanged()
-            spectrumChart.notifyDataSetChanged()
-            spectrumChart.invalidate()
+            // Important: allow LineChart to handle other gestures (zoom, drag)
+            spectrumChart.onTouchEvent(event)
         }
     }
 
@@ -139,28 +156,6 @@ class SpectrumChartFragment : SerialConnectionFragment() {
 
     private fun updateCounts(counts: Long){
         pulseCountValue.text = counts.toString()
-    }
-
-    private fun showResolutionRate(counts: List<Long>) {
-        val max = counts.maxOrNull() ?: return
-        val maxIndex = counts.indexOf(max)
-        val halfMax = max / 2.0
-        var left = maxIndex
-        while (left > 0 && counts[left] > halfMax) left--
-        var right = maxIndex
-        while (right < counts.size && counts[right] > halfMax) right++
-
-        val fwhm = right - left
-        val resolutionPercent = (fwhm.toDouble() / maxIndex) * 100
-
-        spectrumChart.centerViewToAnimated(
-            maxIndex.toFloat(),
-            max.toFloat(),
-            com.github.mikephil.charting.components.YAxis.AxisDependency.LEFT,
-            500
-        )
-
-        spectrumChart.description.text += "\nResolution: %.2f%%".format(resolutionPercent)
     }
 
     override fun read() {
@@ -260,5 +255,166 @@ class SpectrumChartFragment : SerialConnectionFragment() {
             .replace(R.id.fragment, fragment, "command")
             .addToBackStack(null)
             .commit()
+    }
+
+    private fun handleChartTap(tapX: Float) {
+        val tapY = spectrumChart.height / 2f
+        val transformer = spectrumChart.getTransformer(YAxis.AxisDependency.LEFT)
+        val touchPoint = transformer.getValuesByTouchPoint(tapX, tapY)
+
+        val tappedX = touchPoint.x
+        val closestEntry = getClosestEntryToX(tappedX)
+        if (closestEntry != null) {
+            val pickX = closestEntry.x
+            val pickY = closestEntry.y
+
+            drawVerticalLine(pickX)
+
+            val halfHeight = pickY / 2f
+            drawHorizontalLine(halfHeight)
+
+            val (leftX, rightX) = findCrossingPoints(halfHeight, pickX)
+            val resolutionRate = calculateResolutionRate(leftX, rightX, pickX)
+            val primaryColor = if (isNightMode) {
+                resources.getColor(R.color.colorPrimaryNight, null)
+            } else {
+                resources.getColor(R.color.colorPrimaryDay, null)
+            }
+            // Show marker at the cross point (pickX, halfHeight)
+            val marker = spectrumChart.marker as? ResolutionMarkerView
+            marker?.apply {
+                setResolution(resolutionRate, primaryColor)
+                refreshContent(Entry(pickX, halfHeight), Highlight(pickX, halfHeight, 0))
+            }
+
+            spectrumChart.highlightValue(Highlight(pickX, halfHeight, 0)) // triggers marker display
+            val fillColor = resources.getColor(R.color.fillPeakRegionDay)
+            //drawFilledRegion(leftX, rightX, halfHeight, fillColor)
+        }
+    }
+
+    private var filledRegionDataSet: LineDataSet? = null
+
+    private fun drawFilledRegion(leftX: Float, rightX: Float, baselineY: Float, fillColor: Int) {
+        val entries = (spectrumChart.data?.getDataSetByIndex(0) as? LineDataSet)?.values ?: return
+
+        val filledEntries = entries.filter { it.x in leftX..rightX }.toMutableList()
+
+        if (filledEntries.isEmpty()) return
+
+        // Add bottom corner points to close the shape
+        filledEntries.add(Entry(rightX, baselineY))
+        filledEntries.add(Entry(leftX, baselineY))
+
+        // Remove old region if exists
+        spectrumChart.data?.removeDataSet(filledRegionDataSet)
+
+        // Create new dataset
+        filledRegionDataSet = LineDataSet(filledEntries, "FWHM Fill").apply {
+            setDrawFilled(true)
+            setFillColor(fillColor)
+            fillAlpha = 255
+            setDrawValues(false)
+            setDrawCircles(false)
+            color = Color.TRANSPARENT // no line border
+            highLightColor = Color.TRANSPARENT
+        }
+
+        // Add and refresh
+        spectrumChart.data?.addDataSet(filledRegionDataSet)
+        spectrumChart.invalidate()
+    }
+
+
+    private fun getClosestEntryToX(xVal: Double): Entry? {
+        val dataSet = spectrumChart.data.getDataSetByIndex(0)
+        var closestEntry: Entry? = null
+        var minDiff = Double.MAX_VALUE
+
+        for (i in 0 until dataSet.entryCount) {
+            val entry = dataSet.getEntryForIndex(i)
+            val diff = abs(entry.x - xVal)
+            if (diff < minDiff) {
+                closestEntry = entry
+                minDiff = diff
+            }
+        }
+        return closestEntry
+    }
+
+    private fun drawVerticalLine(x: Float) {
+        val xAxis = spectrumChart.xAxis
+
+        verticalLimitLine?.let { xAxis.removeLimitLine(it) }
+        val primaryColor = if (isNightMode) {
+            resources.getColor(R.color.colorPrimaryNight, null)
+        } else {
+            resources.getColor(R.color.colorPrimaryDay, null)
+        }
+        verticalLimitLine = LimitLine(x, "Peak")
+        verticalLimitLine?.apply {
+            lineColor = Color.RED          // fixed line color
+            textColor = primaryColor     // dynamic label color
+            lineWidth = 2f
+            enableDashedLine(3f, 3f, 0f)
+        }
+
+        xAxis.addLimitLine(verticalLimitLine)
+        spectrumChart.invalidate()
+    }
+
+    private fun drawHorizontalLine(y: Float) {
+        val yAxis = spectrumChart.axisLeft
+        val primaryColor = if (isNightMode) {
+            resources.getColor(R.color.colorPrimaryNight, null)
+        } else {
+            resources.getColor(R.color.colorPrimaryDay, null)
+        }
+        horizontalLimitLine?.let { yAxis.removeLimitLine(it) }
+
+        horizontalLimitLine = LimitLine(y, "FWHM / 2")
+        horizontalLimitLine?.apply {
+            lineColor = Color.GREEN        // fixed line color
+            textColor = primaryColor     // dynamic label color
+            lineWidth = 2f
+            enableDashedLine(3f, 3f, 0f)
+        }
+
+        yAxis.addLimitLine(horizontalLimitLine)
+        spectrumChart.invalidate()
+    }
+    private fun findCrossingPoints(halfHeight: Float, pickX: Float): Pair<Float, Float> {
+        val dataSet = spectrumChart.data.getDataSetByIndex(0)
+        var leftX = -1f
+        var rightX = -1f
+
+        // Scan left of the peak
+        for (i in dataSet.entryCount - 1 downTo 0) {
+            val entry = dataSet.getEntryForIndex(i)
+            if (entry.x < pickX && entry.y <= halfHeight) {
+                leftX = entry.x
+                break
+            }
+        }
+
+        // Scan right of the peak
+        for (i in 0 until dataSet.entryCount) {
+            val entry = dataSet.getEntryForIndex(i)
+            if (entry.x > pickX && entry.y <= halfHeight) {
+                rightX = entry.x
+                break
+            }
+        }
+
+        return Pair(leftX, rightX)
+    }
+
+    private fun calculateResolutionRate(leftX: Float, rightX: Float, pickX: Float): Float {
+        val resolutionWidth = rightX - leftX
+        return (resolutionWidth / pickX) * 100
+    }
+
+    private fun showResolutionRate(resolutionRate: Float) {
+        spectrumChart.description.text += "\nResolution: %.2f%%".format(resolutionRate)
     }
 }
