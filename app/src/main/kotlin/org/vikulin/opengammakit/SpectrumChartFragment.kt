@@ -288,43 +288,9 @@ class SpectrumChartFragment : SerialConnectionFragment() {
             }
 
             spectrumChart.highlightValue(Highlight(pickX, halfHeight, 0)) // triggers marker display
-            val fillColor = resources.getColor(R.color.fillPeakRegionDay)
-            //drawFilledRegion(leftX, rightX, halfHeight, fillColor)
+
         }
     }
-
-    private var filledRegionDataSet: LineDataSet? = null
-
-    private fun drawFilledRegion(leftX: Float, rightX: Float, baselineY: Float, fillColor: Int) {
-        val entries = (spectrumChart.data?.getDataSetByIndex(0) as? LineDataSet)?.values ?: return
-
-        val filledEntries = entries.filter { it.x in leftX..rightX }.toMutableList()
-
-        if (filledEntries.isEmpty()) return
-
-        // Add bottom corner points to close the shape
-        filledEntries.add(Entry(rightX, baselineY))
-        filledEntries.add(Entry(leftX, baselineY))
-
-        // Remove old region if exists
-        spectrumChart.data?.removeDataSet(filledRegionDataSet)
-
-        // Create new dataset
-        filledRegionDataSet = LineDataSet(filledEntries, "FWHM Fill").apply {
-            setDrawFilled(true)
-            setFillColor(fillColor)
-            fillAlpha = 255
-            setDrawValues(false)
-            setDrawCircles(false)
-            color = Color.TRANSPARENT // no line border
-            highLightColor = Color.TRANSPARENT
-        }
-
-        // Add and refresh
-        spectrumChart.data?.addDataSet(filledRegionDataSet)
-        spectrumChart.invalidate()
-    }
-
 
     private fun getClosestEntryToX(xVal: Double): Entry? {
         val dataSet = spectrumChart.data.getDataSetByIndex(0)

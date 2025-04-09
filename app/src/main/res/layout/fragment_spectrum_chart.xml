@@ -1,9 +1,9 @@
 <androidx.constraintlayout.widget.ConstraintLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:flexbox="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:layout_marginBottom="50dp">
+    android:layout_height="match_parent">
 
     <!-- LineChart -->
     <com.github.mikephil.charting.charts.LineChart
@@ -11,92 +11,72 @@
         android:layout_width="0dp"
         android:layout_height="0dp"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintBottom_toTopOf="@+id/tableContainer"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"/>
+        app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- Table Container -->
-    <LinearLayout
+    <!-- Scientific-style annotation -->
+    <com.google.android.flexbox.FlexboxLayout
         android:id="@+id/tableContainer"
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:background="#66000000"
+        android:layout_marginBottom="50dp"
         android:padding="8dp"
-        android:layout_marginTop="16dp"
-        app:layout_constraintTop_toTopOf="parent"
+        android:background="#22000000"
+        flexbox:justifyContent="flex_start"
+        flexbox:flexWrap="wrap"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
-        <LinearLayout
-            android:orientation="horizontal"
+        <!-- Device -->
+        <TextView
+            android:id="@+id/deviceValue"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="4dp">
+            android:text="Device Unknown"
+            android:textColor="#DDDDDD"
+            android:textSize="14sp"
+            android:fontFamily="monospace"
+            android:layout_marginEnd="16dp" />
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Device:"
-                android:textColor="#FFFFFF"
-                android:textSize="16sp"
-                android:textStyle="bold"
-                android:layout_marginEnd="8dp"/>
-
-            <TextView
-                android:id="@+id/deviceValue"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Unknown Device"
-                android:textColor="#FFFFFF"
-                android:textSize="16sp"/>
-        </LinearLayout>
-
-        <LinearLayout
-            android:orientation="horizontal"
+        <!-- Counts & Pulse Count in the same pair -->
+        <TextView
+            android:text="Counts"
+            android:textColor="#DDDDDD"
+            android:textSize="14sp"
+            android:fontFamily="monospace"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="4dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Pulse Count:"
-                android:textColor="#FFFFFF"
-                android:textSize="16sp"
-                android:textStyle="bold"
-                android:layout_marginEnd="8dp"/>
-
-            <TextView
-                android:id="@+id/pulseCountValue"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="0"
-                android:textColor="#FFFFFF"
-                android:textSize="16sp"/>
-        </LinearLayout>
-
-        <LinearLayout
-            android:orientation="horizontal"
+            android:layout_marginEnd="10dp" />
+        <TextView
+            android:id="@+id/pulseCountValue"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content">
+            android:layout_height="wrap_content"
+            android:text="0"
+            android:textColor="#DDDDDD"
+            android:textSize="14sp"
+            android:fontFamily="monospace"
+            android:layout_marginEnd="16dp" />
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Measure Time:"
-                android:textColor="#FFFFFF"
-                android:textSize="16sp"
-                android:textStyle="bold"
-                android:layout_marginEnd="8dp"/>
+        <!-- Measure Time -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Measure Time"
+            android:textColor="#DDDDDD"
+            android:textSize="14sp"
+            android:fontFamily="monospace"
+            android:layout_marginEnd="10dp"/>
 
             <Chronometer
                 android:id="@+id/measureTimer"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textColor="#FFFFFF"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-        </LinearLayout>
-    </LinearLayout>
+                android:textColor="#DDDDDD"
+                android:textSize="14sp"
+                android:fontFamily="monospace"/>
+
+    </com.google.android.flexbox.FlexboxLayout>
+
 </androidx.constraintlayout.widget.ConstraintLayout>
