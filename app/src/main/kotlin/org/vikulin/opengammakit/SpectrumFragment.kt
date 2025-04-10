@@ -28,7 +28,7 @@ import org.vikulin.opengammakit.model.OpenGammaKitCommands
 import org.vikulin.opengammakit.view.ResolutionMarkerView
 import kotlin.math.abs
 
-class SpectrumChartFragment : SerialConnectionFragment() {
+class SpectrumFragment : SerialConnectionFragment() {
 
     private lateinit var spectrumChart: LineChart
     private lateinit var deviceValue: TextView

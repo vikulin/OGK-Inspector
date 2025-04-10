@@ -20,7 +20,7 @@ import com.hoho.android.usbserial.driver.UsbSerialProber
 import org.vikulin.opengammakit.CustomProber
 import org.vikulin.opengammakit.InfoFragment
 import org.vikulin.opengammakit.R
-import org.vikulin.opengammakit.SpectrumChartFragment
+import org.vikulin.opengammakit.SpectrumFragment
 import org.vikulin.opengammakit.TerminalFragment
 import java.util.Locale
 
@@ -80,7 +80,7 @@ class DevicesFragment : ListFragment() {
                         putInt("baud", baudRate)
                         putBoolean("withIoManager", withIoManager)
                     }
-                    val fragment: Fragment = SpectrumChartFragment()
+                    val fragment: Fragment = SpectrumFragment()
                     fragment.arguments = args
                     parentFragmentManager.beginTransaction()
                         .replace(R.id.fragment, fragment, "spectrometer")
