@@ -23,7 +23,6 @@ class InfoFragment() : SerialConnectionFragment() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setHasOptionsMenu(true)
         retainInstance = true
 
         arguments?.let {

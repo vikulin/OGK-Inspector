@@ -1,6 +1,5 @@
 package org.vikulin.opengammakit
 
-import android.content.res.Configuration
 import android.graphics.Color
 import android.os.Bundle
 import android.os.SystemClock
@@ -13,7 +12,6 @@ import android.view.ViewGroup
 import android.widget.Chronometer
 import android.widget.TextView
 import android.widget.Toast
-import androidx.core.view.GestureDetectorCompat
 import androidx.fragment.app.Fragment
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.components.Description
@@ -29,7 +27,6 @@ import org.vikulin.opengammakit.model.GammaKitData
 import org.vikulin.opengammakit.model.OpenGammaKitCommands
 import org.vikulin.opengammakit.view.ResolutionMarkerView
 import kotlin.math.abs
-import kotlin.properties.Delegates
 
 class SpectrumChartFragment : SerialConnectionFragment() {
 
@@ -41,7 +38,6 @@ class SpectrumChartFragment : SerialConnectionFragment() {
     private var pauseOffset: Long = 0
     private var verticalLimitLine: LimitLine? = null
     private var horizontalLimitLine: LimitLine? = null
-    private var isNightMode by Delegates.notNull<Boolean>()
 
     private val zeroedData: String by lazy {
         requireContext().assets.open("spectrum_zeroed.json").bufferedReader().use { it.readText() }
@@ -51,8 +47,6 @@ class SpectrumChartFragment : SerialConnectionFragment() {
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        isNightMode = resources.configuration.uiMode and
-                Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
         return inflater.inflate(R.layout.fragment_spectrum_chart, container, false)
     }
 
@@ -98,11 +92,7 @@ class SpectrumChartFragment : SerialConnectionFragment() {
             color = resources.getColor(android.R.color.holo_blue_light, null)
         }
 
-        val primaryColor = if (isNightMode) {
-            resources.getColor(R.color.colorPrimaryNight, null)
-        } else {
-            resources.getColor(R.color.colorPrimaryDay, null)
-        }
+        val primaryColor = resources.getColor(R.color.colorPrimaryText, null)
 
         spectrumChart.apply {
             data = LineData(spectrumDataSet)
@@ -123,7 +113,7 @@ class SpectrumChartFragment : SerialConnectionFragment() {
     }
 
     private fun setupChartTouchListener() {
-        val gestureDetector = GestureDetectorCompat(requireContext(), object : GestureDetector.SimpleOnGestureListener() {
+        val gestureDetector = GestureDetector(requireContext(), object : GestureDetector.SimpleOnGestureListener() {
             override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
                 // Translate touch point and handle pick selection
                 handleChartTap(e.x)
@@ -275,11 +265,7 @@ class SpectrumChartFragment : SerialConnectionFragment() {
 
             val (leftX, rightX) = findCrossingPoints(halfHeight, pickX)
             val resolutionRate = calculateResolutionRate(leftX, rightX, pickX)
-            val primaryColor = if (isNightMode) {
-                resources.getColor(R.color.colorPrimaryNight, null)
-            } else {
-                resources.getColor(R.color.colorPrimaryDay, null)
-            }
+            val primaryColor = resources.getColor(R.color.colorPrimaryText, null)
             // Show marker at the cross point (pickX, halfHeight)
             val marker = spectrumChart.marker as? ResolutionMarkerView
             marker?.apply {
@@ -312,11 +298,7 @@ class SpectrumChartFragment : SerialConnectionFragment() {
         val xAxis = spectrumChart.xAxis
 
         verticalLimitLine?.let { xAxis.removeLimitLine(it) }
-        val primaryColor = if (isNightMode) {
-            resources.getColor(R.color.colorPrimaryNight, null)
-        } else {
-            resources.getColor(R.color.colorPrimaryDay, null)
-        }
+        val primaryColor = resources.getColor(R.color.colorPrimaryText, null)
         verticalLimitLine = LimitLine(x, "Peak")
         verticalLimitLine?.apply {
             lineColor = Color.RED          // fixed line color
@@ -331,11 +313,7 @@ class SpectrumChartFragment : SerialConnectionFragment() {
 
     private fun drawHorizontalLine(y: Float) {
         val yAxis = spectrumChart.axisLeft
-        val primaryColor = if (isNightMode) {
-            resources.getColor(R.color.colorPrimaryNight, null)
-        } else {
-            resources.getColor(R.color.colorPrimaryDay, null)
-        }
+        val primaryColor = resources.getColor(R.color.colorPrimaryText, null)
         horizontalLimitLine?.let { yAxis.removeLimitLine(it) }
 
         horizontalLimitLine = LimitLine(y, "FWHM / 2")
@@ -378,9 +356,5 @@ class SpectrumChartFragment : SerialConnectionFragment() {
     private fun calculateResolutionRate(leftX: Float, rightX: Float, pickX: Float): Float {
         val resolutionWidth = rightX - leftX
         return (resolutionWidth / pickX) * 100
-    }
-
-    private fun showResolutionRate(resolutionRate: Float) {
-        spectrumChart.description.text += "\nResolution: %.2f%%".format(resolutionRate)
     }
 }

@@ -15,6 +15,16 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
+    <ImageView
+        android:id="@+id/imageView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        flexbox:srcCompat="@drawable/ic_calibration"
+        android:layout_margin="50dp"
+        app:tint="@color/colorPrimaryText"/>
+
     <!-- Scientific-style annotation -->
     <com.google.android.flexbox.FlexboxLayout
         android:id="@+id/tableContainer"
@@ -22,7 +32,6 @@
         android:layout_height="wrap_content"
         android:layout_marginBottom="50dp"
         android:padding="8dp"
-        android:background="#22000000"
         flexbox:justifyContent="flex_start"
         flexbox:flexWrap="wrap"
         app:layout_constraintBottom_toBottomOf="parent"
@@ -34,8 +43,8 @@
             android:id="@+id/deviceValue"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:textColor="@color/colorPrimaryText"
             android:text="Device Unknown"
-            android:textColor="#DDDDDD"
             android:textSize="14sp"
             android:fontFamily="monospace"
             android:layout_marginEnd="16dp" />
@@ -43,8 +52,8 @@
         <!-- Counts & Pulse Count in the same pair -->
         <TextView
             android:text="Counts"
-            android:textColor="#DDDDDD"
             android:textSize="14sp"
+            android:textColor="@color/colorPrimaryText"
             android:fontFamily="monospace"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -53,8 +62,8 @@
             android:id="@+id/pulseCountValue"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:textColor="@color/colorPrimaryText"
             android:text="0"
-            android:textColor="#DDDDDD"
             android:textSize="14sp"
             android:fontFamily="monospace"
             android:layout_marginEnd="16dp" />
@@ -63,19 +72,19 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:textColor="@color/colorPrimaryText"
             android:text="Measure Time"
-            android:textColor="#DDDDDD"
             android:textSize="14sp"
             android:fontFamily="monospace"
             android:layout_marginEnd="10dp"/>
 
-            <Chronometer
-                android:id="@+id/measureTimer"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textColor="#DDDDDD"
-                android:textSize="14sp"
-                android:fontFamily="monospace"/>
+        <Chronometer
+            android:id="@+id/measureTimer"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/colorPrimaryText"
+            android:textSize="14sp"
+            android:fontFamily="monospace"/>
 
     </com.google.android.flexbox.FlexboxLayout>
 

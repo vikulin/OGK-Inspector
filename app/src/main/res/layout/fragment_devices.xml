@@ -17,6 +17,7 @@
         android:layout_height="wrap_content"
         android:text="No USB devices found"
         android:textSize="18sp"
-        android:gravity="center" />
+        android:gravity="center"
+        android:textAppearance="@style/TextAppearance.AppCompat.Medium"/>
 
 </LinearLayout>

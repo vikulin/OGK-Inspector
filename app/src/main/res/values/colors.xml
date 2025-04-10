@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="colorPrimary">#FF9800</color>
-    <color name="colorPrimaryDay">#000000</color>
-    <color name="colorPrimaryNight">#FFFFFF</color>
+    <color name="colorPrimaryText">#000000</color>
     <color name="colorPrimaryDark">#61671B</color>
     <color name="colorAccent">#D8E33B</color>
 
-    <color name="colorRecieveText">#00FF00</color>
+    <color name="colorRecieveText">#000000</color>
     <color name="colorSendText">#82CAFF</color>
     <color name="colorStatusText">#FFDB58</color>
-    <color name="fillPeakRegionDay">#EE8BC34A</color> <!-- light green with alpha -->
-    <color name="fillPeakRegionNight">#EEFF9800</color> <!-- orange with alpha -->
+    <color name="bg">#DDDDDD</color>
+    <color name="stroke">#CC000000</color>
+
 </resources>

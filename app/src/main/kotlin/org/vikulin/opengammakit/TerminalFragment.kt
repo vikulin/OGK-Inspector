@@ -142,7 +142,7 @@ class TerminalFragment : SerialConnectionFragment() {
 
     override fun status(str: String) {
         val spn = SpannableStringBuilder("$str\n").apply {
-            setSpan(ForegroundColorSpan(resources.getColor(R.color.colorStatusText)), 0, length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+            setSpan(ForegroundColorSpan(resources.getColor(R.color.colorPrimary)), 0, length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
         receiveText.append(spn)
     }

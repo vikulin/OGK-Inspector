@@ -12,7 +12,8 @@
         android:layout_height="wrap_content"
         android:layout_weight="1"
         android:textStyle="bold"
-        android:textSize="12sp"/>
+        android:textSize="12sp"
+        android:textAppearance="@style/TextAppearance.AppCompat.Medium"/>
 
     <!-- Value Text -->
     <TextView
@@ -22,5 +23,6 @@
         android:layout_weight="1"
         android:gravity="end"
         android:padding="3dp"
-        android:textSize="12sp"/>
+        android:textSize="12sp"
+        android:textAppearance="@style/TextAppearance.AppCompat.Medium"/>
 </LinearLayout>
