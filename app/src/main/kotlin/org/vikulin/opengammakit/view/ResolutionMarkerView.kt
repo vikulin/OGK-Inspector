@@ -16,6 +16,6 @@ class ResolutionMarkerView(context: Context, layoutResource: Int) : MarkerView(c
 
     override fun getOffset(): MPPointF {
         // Position top-right of the cross
-        return MPPointF(-width.toFloat(), -height.toFloat())
+        return MPPointF(0f+20, -height.toFloat()-20)
     }
 }
