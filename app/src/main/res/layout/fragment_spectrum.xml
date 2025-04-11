@@ -2,6 +2,7 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:flexbox="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
@@ -15,17 +16,60 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <ImageView
-        android:id="@+id/imageView"
+    <ImageButton
+        android:id="@+id/btnCalibration"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         flexbox:srcCompat="@drawable/ic_calibration"
         android:layout_margin="50dp"
+        android:background="@android:color/transparent"
         app:tint="@color/colorPrimaryText"/>
 
     <!-- Scientific-style annotation -->
+    <ImageButton
+        android:id="@+id/btnFwhm"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="25dp"
+        android:layout_marginBottom="0dp"
+        android:layout_marginStart="50dp"
+        android:layout_marginEnd="50dp"
+        android:background="@android:color/transparent"
+        flexbox:layout_constraintEnd_toEndOf="parent"
+        flexbox:layout_constraintTop_toBottomOf="@+id/btnCalibration"
+        flexbox:srcCompat="@drawable/ic_fwhm"
+        flexbox:tint="@color/colorPrimaryText" />
+
+    <ImageButton
+        android:id="@+id/btnScreenshot"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="25dp"
+        android:layout_marginBottom="0dp"
+        android:layout_marginStart="50dp"
+        android:layout_marginEnd="50dp"
+        android:background="@android:color/transparent"
+        flexbox:layout_constraintEnd_toEndOf="parent"
+        flexbox:layout_constraintTop_toBottomOf="@+id/btnFwhm"
+        flexbox:srcCompat="@drawable/ic_screenshot"
+        flexbox:tint="@color/colorPrimaryText" />
+
+    <ImageButton
+        android:id="@+id/btnShare"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="25dp"
+        android:layout_marginBottom="0dp"
+        android:layout_marginStart="50dp"
+        android:layout_marginEnd="50dp"
+        android:background="@android:color/transparent"
+        flexbox:layout_constraintEnd_toEndOf="parent"
+        flexbox:layout_constraintTop_toBottomOf="@+id/btnScreenshot"
+        flexbox:srcCompat="@drawable/ic_share"
+        flexbox:tint="@color/colorPrimaryText" />
+
     <com.google.android.flexbox.FlexboxLayout
         android:id="@+id/tableContainer"
         android:layout_width="0dp"
