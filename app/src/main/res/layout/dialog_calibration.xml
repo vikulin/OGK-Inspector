@@ -28,8 +28,8 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginTop="18dp"
-        android:hint="keV (e.g., Cs-137: 662 keV)"
-        android:inputType="numberDecimal"
+        android:hint="keV (e.g., Cs-137: 661.7keV)"
+        android:popupBackground="@color/colorPrimaryTextDark"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/labelPeak1" />

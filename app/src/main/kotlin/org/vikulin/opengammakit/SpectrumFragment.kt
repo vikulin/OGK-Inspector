@@ -39,6 +39,7 @@ import kotlin.math.abs
 import androidx.core.graphics.createBitmap
 import com.github.mikephil.charting.components.AxisBase
 import com.github.mikephil.charting.formatter.ValueFormatter
+import org.vikulin.opengammakit.model.Isotope
 import java.io.OutputStream
 
 class SpectrumFragment : SerialConnectionFragment() {
@@ -264,7 +265,7 @@ class SpectrumFragment : SerialConnectionFragment() {
                 valueFormatter = object : ValueFormatter() {
                     override fun getAxisLabel(value: Float, axis: AxisBase?): String {
                         val energy = interpolateEnergy(value.toDouble())
-                        return "%.0f keV".format(energy) // Combine labels with newline
+                        return "%.1f keV".format(energy) // Combine labels with newline
                     }
                 }
             }
@@ -444,7 +445,7 @@ class SpectrumFragment : SerialConnectionFragment() {
         spectrumChart.invalidate()
     }
 
-    private fun addOrUpdateVerticalCalibrationLine(x: Float, peakChannel: Double, peakEnergy: Double) {
+    private fun addOrUpdateVerticalCalibrationLine(x: Float, peakChannel: Double, peakEnergy: Double, peakIsotope: Isotope?) {
         val xAxis = spectrumChart.xAxis
         val primaryColor = resources.getColor(R.color.colorPrimaryText, null)
 
@@ -456,7 +457,12 @@ class SpectrumFragment : SerialConnectionFragment() {
             existingPair.let { verticalCalibrationLineList.remove(it) }
         }
         // Create a new LimitLine and add it to the list
-        val verticalCalibrationLine = LimitLine(x, "%.2f keV".format(peakEnergy))
+        val label = if(peakIsotope != null){
+            "%s %.1f keV".format(peakIsotope.name, peakEnergy)
+        } else {
+            "%.1f keV".format(peakEnergy)
+        }
+        val verticalCalibrationLine = LimitLine(x, label)
         verticalCalibrationLine.apply {
             lineColor = Color.MAGENTA
             textColor = primaryColor
@@ -527,13 +533,13 @@ class SpectrumFragment : SerialConnectionFragment() {
 
                 // Set the listener to receive the callback
                 calibrationDialogFragment.setCalibrationDialogListener(object : CalibrationDialogFragment.CalibrationDialogListener {
-                    override fun onCalibrationCompleted(peakChannel: Double, peakEnergy: Double) {
+                    override fun onCalibrationCompleted(peakChannel: Double, peakEnergy: Double, isotope: Isotope?) {
                         // Handle the values returned by the dialog
                         // For example, you can update UI or save the calibration data
                         // Do something with peakChannel and peakEnergy
                         //val marker = ResolutionMarkerView(requireContext(), R.layout.marker_view)
                         //spectrumChart.marker = marker
-                        addOrUpdateVerticalCalibrationLine(pickX, peakChannel, peakEnergy)
+                        addOrUpdateVerticalCalibrationLine(pickX, peakChannel, peakEnergy, isotope)
                         if(verticalCalibrationLineList.size>1){
                             updateChartWithCombinedXAxis()
                         }

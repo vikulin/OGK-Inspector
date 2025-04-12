@@ -1,6 +1,8 @@
 package org.vikulin.opengammakit.view
 
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -10,7 +12,9 @@ import android.widget.Button
 import android.widget.EditText
 import androidx.fragment.app.DialogFragment
 import org.json.JSONObject
+import org.vikulin.opengammakit.adapter.IsotopeAdapter
 import org.vikulin.opengammakit.R
+import org.vikulin.opengammakit.model.Isotope
 import java.io.InputStream
 import java.util.Locale
 
@@ -19,7 +23,7 @@ class CalibrationDialogFragment(private val x: Float) : DialogFragment() {
 
     // Define the callback interface
     interface CalibrationDialogListener {
-        fun onCalibrationCompleted(peakChannel: Double, peakEnergy: Double)
+        fun onCalibrationCompleted(peakChannel: Double, peakEnergy: Double, isotope: Isotope?)
     }
 
     private var listener: CalibrationDialogListener? = null
@@ -39,39 +43,77 @@ class CalibrationDialogFragment(private val x: Float) : DialogFragment() {
         val btnCancel = view.findViewById<Button>(R.id.btnCancel)
         editChannel.setText(String.format(Locale.US, "%.1f", x))
 
-        val isotopesKeV = mutableListOf<String>()
+        val isotopesList = mutableListOf<Isotope>()
+        var chosenIsotope: Isotope? = null
 
         try {
             // Open the JSON file from assets
             val json = requireContext().assets.open("isotopes_keV.json").bufferedReader().use { it.readText() }
             val jsonObject = JSONObject(json)
-            val isotopes = jsonObject.getJSONArray("isotopes")
+            val isotopesArray = jsonObject.getJSONArray("isotopes")
 
             // Extract isotope names and energies
-            for (i in 0 until isotopes.length()) {
-                val isotope = isotopes.getJSONObject(i)
+            for (i in 0 until isotopesArray.length()) {
+                val isotope = isotopesArray.getJSONObject(i)
                 val name = isotope.getString("name")
-                val energies = isotope.getJSONArray("energies")
+                val energies = mutableListOf<Double>()
 
-                // Combine isotope name with its energies
-                val energyList = mutableListOf<String>()
-                for (j in 0 until energies.length()) {
-                    energyList.add("${energies.getDouble(j)} keV")
+                val energiesArray = isotope.getJSONArray("energies")
+                for (j in 0 until energiesArray.length()) {
+                    energies.add(energiesArray.getDouble(j))
                 }
-                isotopesKeV.add("$name: ${energyList.joinToString(", ")}")
+                isotopesList.add(Isotope(name, energies))
             }
 
-            // Create an ArrayAdapter and attach it to the AutoCompleteTextView
-            val adapter = ArrayAdapter(requireContext(), android.R.layout.simple_dropdown_item_1line, isotopesKeV)
+            val adapter = IsotopeAdapter(requireContext(), isotopesList)
             editPeak.setAdapter(adapter)
 
-            // Corrected: Ensure correct type retrieval & use `joinToString` properly
+            var enteredValue = ""
+
+            // Add a TextWatcher to monitor changes in the text field
+            editPeak.addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
+                    // No action needed before text change
+                    enteredValue = s?.toString().toString()
+                }
+
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                    // Update the enteredValue whenever the text changes
+
+                }
+
+                override fun afterTextChanged(s: Editable?) {
+                    // No action needed after text change
+                }
+            })
+
             editPeak.setOnItemClickListener { parent, _, position, _ ->
-                val isotope = isotopes.getJSONObject(position)
-                val name = isotope.getString("name")
-                val energy = isotope.getJSONArray("energies")[0].toString()
-                editPeak.setText(energy) // Replace input with only energy values
+                val selectedIsotope = parent.getItemAtPosition(position) as Isotope
+
+                // Check if the chosen value is a number
+                // Check if the chosen value is a number (integer or double)
+                val parsedNumber = enteredValue.toDoubleOrNull()
+
+                if (parsedNumber != null) {
+                    // Find the first matching energy
+                    val matchingEnergy = selectedIsotope.energies.find { energy ->
+                        "%.1f".format(energy).contains("%.0f".format(parsedNumber))
+                    }
+
+                    // Assign matching value to editPeak if found
+                    if (matchingEnergy != null) {
+                        editPeak.setText("%.1f".format(matchingEnergy))
+                        chosenIsotope = selectedIsotope
+                    } else {
+                        editPeak.error = "No matching energy found"
+                    }
+                } else {
+                    val selectedIsotope = parent.getItemAtPosition(position) as Isotope
+                    editPeak.setText(selectedIsotope.energies[0].toString())
+                    chosenIsotope = selectedIsotope
+                }
             }
+
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -81,7 +123,7 @@ class CalibrationDialogFragment(private val x: Float) : DialogFragment() {
             val peakEnergy = editPeak.text.toString().toDoubleOrNull()
             if (peakChannel != null && peakEnergy != null) {
                 // Call the callback to return the values
-                listener?.onCalibrationCompleted(peakChannel, peakEnergy)
+                listener?.onCalibrationCompleted(peakChannel, peakEnergy, chosenIsotope)
                 dismiss()
             }
         }
