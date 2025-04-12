@@ -45,6 +45,7 @@ import org.vikulin.opengammakit.model.EmissionSource
 import org.vikulin.opengammakit.model.Isotope
 import java.io.OutputStream
 import androidx.core.content.edit
+import org.vikulin.opengammakit.view.CalibrationUpdateOrRemoveDialogFragment
 
 class SpectrumFragment : SerialConnectionFragment() {
 
@@ -92,7 +93,32 @@ class SpectrumFragment : SerialConnectionFragment() {
             override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
                 if(calibration) {
                     spectrumChart.marker = null
-                    showCalibrationDialog(e.x)
+                    val closestEntry = getValuesByTouchPoint(e.x)
+                    if (closestEntry != null) {
+                        val pickX = closestEntry.x
+                        // Check if peakChannel already exists in the list
+                        val existingPair = verticalCalibrationLineList.find { abs(it.second.first - pickX) < 20 }
+                        if(existingPair != null){
+                            //update or remove
+                            val calibrationDialogFragment = CalibrationUpdateOrRemoveDialogFragment(existingPair)
+                            // Set the listener to receive the callback
+                            calibrationDialogFragment.setCalibrationDialogListener(object : CalibrationUpdateOrRemoveDialogFragment.CalibrationDialogListener {
+                                override fun onCalibrationRemove(calibrationPoint: Pair<LimitLine, Pair<Double, EmissionSource>>) {
+                                    //remove calibration point
+                                    calibrationPoint.first.let { spectrumChart.xAxis.removeLimitLine(it) }
+                                    calibrationPoint.let { verticalCalibrationLineList.remove(it) }
+                                    spectrumChart.invalidate()
+                                }
+
+                                override fun onCalibrationUpdate(calibrationPoint: Pair<LimitLine, Pair<Double, EmissionSource>>) {
+                                    showCalibrationDialog(e.x)
+                                }
+                            })
+                            calibrationDialogFragment.show(childFragmentManager, "calibration_dialog_remove_or_update")
+                        } else {
+                            showCalibrationDialog(e.x)
+                        }
+                    }
                 }
                 if(fwhm) {
                     val marker = ResolutionMarkerView(requireContext(), R.layout.marker_view)
@@ -201,8 +227,8 @@ class SpectrumFragment : SerialConnectionFragment() {
 
     private fun updateChartWithCombinedXAxis() {
         // Ensure calibration data exists
-        if (verticalCalibrationLineList.isEmpty()) {
-            println("No calibration data available!")
+        if (verticalCalibrationLineList.size < 2) {
+            println("Insufficient calibration data!")
             return
         }
 
@@ -456,13 +482,6 @@ class SpectrumFragment : SerialConnectionFragment() {
 
     private fun addOrUpdateVerticalCalibrationLine(x: Float, peakChannel: Double, peakEnergy: Double, peakIsotope: Isotope?) {
         val xAxis = spectrumChart.xAxis
-        // Check if peakChannel already exists in the list
-        val existingPair = verticalCalibrationLineList.find { abs(it.second.first - peakChannel) < 20 }
-
-        if (existingPair != null) {
-            existingPair.first.let { xAxis.removeLimitLine(it) }
-            existingPair.let { verticalCalibrationLineList.remove(it) }
-        }
         // Create a new LimitLine and add it to the list
         val label = if(peakIsotope != null){
             "%s %.1f keV".format(peakIsotope.name, peakEnergy)
