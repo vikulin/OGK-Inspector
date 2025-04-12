@@ -44,6 +44,7 @@ import org.vikulin.opengammakit.model.CalibrationData
 import org.vikulin.opengammakit.model.EmissionSource
 import org.vikulin.opengammakit.model.Isotope
 import java.io.OutputStream
+import androidx.core.content.edit
 
 class SpectrumFragment : SerialConnectionFragment() {
 
@@ -503,6 +504,7 @@ class SpectrumFragment : SerialConnectionFragment() {
         yAxis.addLimitLine(horizontalLimitLine)
         spectrumChart.invalidate()
     }
+
     private fun findCrossingPoints(halfHeight: Float, pickX: Float): Pair<Float, Float> {
         val dataSet = spectrumChart.data.getDataSetByIndex(0)
         var leftX = -1f
@@ -561,7 +563,6 @@ class SpectrumFragment : SerialConnectionFragment() {
             }
         }
     }
-
 
     private fun getValuesByTouchPoint(tapX: Float): Entry? {
         val tapY = spectrumChart.height / 2f
@@ -661,20 +662,20 @@ class SpectrumFragment : SerialConnectionFragment() {
 
     // Function to save calibration data
     private fun saveCalibrationData() {
-        val editor = sharedPreferences.edit()
+        sharedPreferences.edit {
 
-        // Convert the calibration data list to JSON using kotlinx.serialization
-        val serializedData = Json.encodeToString(verticalCalibrationLineList.map {
-            CalibrationData(
-                limitLineValue = it.first.limit,
-                limitLineLabel = it.first.label,
-                channel = it.second.first,
-                emissionSource = it.second.second
-            )
-        })
+            // Convert the calibration data list to JSON using kotlinx.serialization
+            val serializedData = Json.encodeToString(verticalCalibrationLineList.map {
+                CalibrationData(
+                    limitLineValue = it.first.limit,
+                    limitLineLabel = it.first.label,
+                    channel = it.second.first,
+                    emissionSource = it.second.second
+                )
+            })
 
-        editor.putString(calibrationPreferencesKey, serializedData)
-        editor.apply() // Commit changes asynchronously
+            putString(calibrationPreferencesKey, serializedData)
+        } // Commit changes asynchronously
     }
 
     // Function to load calibration data
