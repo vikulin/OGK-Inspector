@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="colorPrimaryText">#DDDDDD</color>
+    <color name="colorPrimaryTextDark">#000000</color>
     <color name="colorRecieveText">#00FF00</color>
     <color name="bg">#CC000000</color>
     <color name="stroke">#DDDDDD</color>
