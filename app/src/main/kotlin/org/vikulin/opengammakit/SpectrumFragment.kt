@@ -65,6 +65,8 @@ class SpectrumFragment : SerialConnectionFragment() {
     private var fwhm = false
     private var calibration = false
     private var verticalCalibrationLineList = mutableListOf<Pair<LimitLine, Pair<Double, EmissionSource>>>()
+    private val calibrationPreferencesKey = "calibration_data_"
+    private lateinit var sharedPreferences: SharedPreferences
 
     private val zeroedData: String by lazy {
         requireContext().assets.open("spectrum_zeroed.json").bufferedReader().use { it.readText() }
@@ -666,9 +668,6 @@ class SpectrumFragment : SerialConnectionFragment() {
         }
     }
 
-    private val calibrationPreferencesKey = "calibration_data"
-    private lateinit var sharedPreferences: SharedPreferences
-
     override fun onAttach(context: Context) {
         super.onAttach(context)
         sharedPreferences = context.getSharedPreferences("CalibrationPrefs", Context.MODE_PRIVATE)
@@ -693,13 +692,13 @@ class SpectrumFragment : SerialConnectionFragment() {
                 )
             })
 
-            putString(calibrationPreferencesKey, serializedData)
+            putString(calibrationPreferencesKey+deviceId, serializedData)
         } // Commit changes asynchronously
     }
 
     // Function to load calibration data
     private fun loadCalibrationData() {
-        val serializedData = sharedPreferences.getString(calibrationPreferencesKey, null) ?: return
+        val serializedData = sharedPreferences.getString(calibrationPreferencesKey+deviceId, null) ?: return
 
         // Deserialize the JSON back into the calibration list using kotlinx.serialization
         val calibrationDataList: List<CalibrationData> = Json.decodeFromString(serializedData)
