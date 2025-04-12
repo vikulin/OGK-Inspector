@@ -39,6 +39,7 @@ import kotlin.math.abs
 import androidx.core.graphics.createBitmap
 import com.github.mikephil.charting.components.AxisBase
 import com.github.mikephil.charting.formatter.ValueFormatter
+import org.vikulin.opengammakit.model.EmissionSource
 import org.vikulin.opengammakit.model.Isotope
 import java.io.OutputStream
 
@@ -59,7 +60,7 @@ class SpectrumFragment : SerialConnectionFragment() {
     private lateinit var gestureDetector: GestureDetector
     private var fwhm = false
     private var calibration = false
-    private var verticalCalibrationLineList = mutableListOf<Pair<LimitLine, Pair<Double, Double>>>()
+    private var verticalCalibrationLineList = mutableListOf<Pair<LimitLine, Pair<Double, EmissionSource>>>()
 
     private val zeroedData: String by lazy {
         requireContext().assets.open("spectrum_zeroed.json").bufferedReader().use { it.readText() }
@@ -208,13 +209,13 @@ class SpectrumFragment : SerialConnectionFragment() {
                 val firstPoint = sortedCalibrationList.first()
                 val secondPoint = sortedCalibrationList[1]
                 val ratio = (channel - firstPoint.second.first) / (secondPoint.second.first - firstPoint.second.first)
-                return firstPoint.second.second.toFloat() + ratio * (secondPoint.second.second.toFloat() - firstPoint.second.second.toFloat())
+                return firstPoint.second.second.energy.toFloat() + ratio * (secondPoint.second.second.energy.toFloat() - firstPoint.second.second.energy.toFloat())
             } else if (channel >= sortedCalibrationList.last().second.first) {
                 // Extrapolate for channels above the last calibration point
                 val lastPoint = sortedCalibrationList.last()
                 val secondLastPoint = sortedCalibrationList[sortedCalibrationList.size - 2]
                 val ratio = (channel - secondLastPoint.second.first) / (lastPoint.second.first - secondLastPoint.second.first)
-                return secondLastPoint.second.second.toFloat() + ratio * (lastPoint.second.second.toFloat() - secondLastPoint.second.second.toFloat())
+                return secondLastPoint.second.second.energy.toFloat() + ratio * (lastPoint.second.second.energy.toFloat() - secondLastPoint.second.second.energy.toFloat())
             } else {
                 // Interpolate for channels within the calibration range
                 for (i in 0 until sortedCalibrationList.size - 1) {
@@ -222,7 +223,7 @@ class SpectrumFragment : SerialConnectionFragment() {
                     val point2 = sortedCalibrationList[i + 1]
                     if (channel >= point1.second.first && channel <= point2.second.first) {
                         val ratio = (channel - point1.second.first) / (point2.second.first - point1.second.first)
-                        return point1.second.second.toFloat() + ratio * (point2.second.second.toFloat() - point1.second.second.toFloat())
+                        return point1.second.second.energy.toFloat() + ratio * (point2.second.second.energy.toFloat() - point1.second.second.energy.toFloat())
                     }
                 }
             }
@@ -470,7 +471,12 @@ class SpectrumFragment : SerialConnectionFragment() {
             enableDashedLine(3f, 3f, 0f)
         }
         xAxis.addLimitLine(verticalCalibrationLine)
-        verticalCalibrationLineList.add(Pair(verticalCalibrationLine, Pair(peakChannel, peakEnergy)))
+        val calibrationIsotope = if(peakIsotope != null){
+            EmissionSource(peakIsotope.name, peakEnergy)
+        } else {
+            EmissionSource("", peakEnergy)
+        }
+        verticalCalibrationLineList.add(Pair(verticalCalibrationLine, Pair(peakChannel, calibrationIsotope)))
 
 
         spectrumChart.invalidate() // Refresh the chart
