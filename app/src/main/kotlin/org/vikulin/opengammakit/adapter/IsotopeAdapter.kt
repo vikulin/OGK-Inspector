@@ -30,6 +30,9 @@ class IsotopeAdapter(context: Context, private val isotopes: List<Isotope>) :
     }
 
     override fun getItem(position: Int): Isotope? {
+        if(position > filteredIsotopes.size-1){
+            return null
+        }
         return filteredIsotopes[position] // Return the item from the filtered list
     }
 

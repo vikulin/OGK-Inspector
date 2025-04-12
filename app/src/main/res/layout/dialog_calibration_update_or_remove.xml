@@ -8,7 +8,6 @@
     android:padding="20dp"
     android:background="@drawable/dialog_rounded_corner">
 
-    <!-- Peak 1 Label -->
     <TextView
         android:id="@+id/labelUpdateOrRemove"
         android:layout_width="0dp"
@@ -23,13 +22,25 @@
         android:layout_marginTop="18dp"
         android:textColor="@color/colorPrimaryText"/>
 
+    <TextView
+        android:id="@+id/calibrationPoint"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:textAlignment="center"
+        android:textColor="@color/colorPrimaryText"
+        android:textSize="20sp"
+        android:layout_marginTop="18dp"
+        app:layout_constraintTop_toBottomOf="@+id/labelUpdateOrRemove"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
     <Button
         android:id="@+id/btnCancel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Cancel"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/labelUpdateOrRemove"
+        app:layout_constraintTop_toBottomOf="@+id/calibrationPoint"
         android:layout_marginTop="18dp"/>
 
     <Button
@@ -39,7 +50,7 @@
         android:text="Update"
         app:layout_constraintEnd_toStartOf="@+id/btnRemove"
         app:layout_constraintStart_toEndOf="@+id/btnCancel"
-        app:layout_constraintTop_toBottomOf="@+id/labelUpdateOrRemove"
+        app:layout_constraintTop_toBottomOf="@+id/calibrationPoint"
         android:layout_marginTop="18dp"/>
 
     <Button
@@ -48,7 +59,7 @@
         android:layout_height="wrap_content"
         android:text="Remove"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/labelUpdateOrRemove"
+        app:layout_constraintTop_toBottomOf="@+id/calibrationPoint"
         android:layout_marginTop="18dp"/>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

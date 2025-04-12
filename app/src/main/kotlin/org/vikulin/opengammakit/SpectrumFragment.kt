@@ -1,6 +1,5 @@
 package org.vikulin.opengammakit
 
-
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
@@ -45,9 +44,14 @@ import org.vikulin.opengammakit.model.EmissionSource
 import org.vikulin.opengammakit.model.Isotope
 import java.io.OutputStream
 import androidx.core.content.edit
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import org.vikulin.opengammakit.view.CalibrationUpdateOrRemoveDialogFragment
 
-class SpectrumFragment : SerialConnectionFragment() {
+class SpectrumFragment : SerialConnectionFragment(),
+    CalibrationUpdateOrRemoveDialogFragment.CalibrationDialogListener,
+    CalibrationDialogFragment.CalibrationDialogListener {
 
     private lateinit var spectrumChart: LineChart
     private lateinit var deviceValue: TextView
@@ -101,24 +105,15 @@ class SpectrumFragment : SerialConnectionFragment() {
                         // Check if peakChannel already exists in the list
                         val existingPair = verticalCalibrationLineList.find { abs(it.second.first - pickX) < 20 }
                         if(existingPair != null){
+                            val index = verticalCalibrationLineList.indexOf(existingPair)
                             //update or remove
-                            val calibrationDialogFragment = CalibrationUpdateOrRemoveDialogFragment(existingPair)
-                            // Set the listener to receive the callback
-                            calibrationDialogFragment.setCalibrationDialogListener(object : CalibrationUpdateOrRemoveDialogFragment.CalibrationDialogListener {
-                                override fun onCalibrationRemove(calibrationPoint: Pair<LimitLine, Pair<Double, EmissionSource>>) {
-                                    //remove calibration point
-                                    calibrationPoint.first.let { spectrumChart.xAxis.removeLimitLine(it) }
-                                    calibrationPoint.let { verticalCalibrationLineList.remove(it) }
-                                    spectrumChart.invalidate()
-                                }
-
-                                override fun onCalibrationUpdate(calibrationPoint: Pair<LimitLine, Pair<Double, EmissionSource>>) {
-                                    showCalibrationDialog(e.x)
-                                }
-                            })
+                            val calibrationDialogFragment = CalibrationUpdateOrRemoveDialogFragment.newInstance(index, existingPair)
                             calibrationDialogFragment.show(childFragmentManager, "calibration_dialog_remove_or_update")
                         } else {
-                            showCalibrationDialog(e.x)
+                            val limitLine = LimitLine(e.x, "")
+                            val emissionSource = EmissionSource("", 0.0)
+                            val calibrationPoint = Pair(limitLine, Pair(pickX.toDouble(), emissionSource))
+                            showCalibrationDialog(verticalCalibrationLineList.indexOf(calibrationPoint), calibrationPoint)
                         }
                     }
                 }
@@ -153,6 +148,12 @@ class SpectrumFragment : SerialConnectionFragment() {
 
         btnShare.setOnClickListener {
             shareChartScreenshot(requireContext(), spectrumChart, view.findViewById(R.id.tableContainer))
+        }
+    }
+
+    fun runOnMainThread(action: suspend () -> Unit) {
+        CoroutineScope(Dispatchers.Main).launch {
+            action()
         }
     }
 
@@ -305,10 +306,7 @@ class SpectrumFragment : SerialConnectionFragment() {
                     }
                 }
             }
-
             axisLeft.textColor = primaryColor
-            axisRight.isEnabled = false // Disable vertical axis since it's not required
-
             // Set the description and refresh the chart
             description = Description().apply {
                 text = "Counts vs Energy"
@@ -482,15 +480,20 @@ class SpectrumFragment : SerialConnectionFragment() {
         spectrumChart.invalidate()
     }
 
-    private fun addOrUpdateVerticalCalibrationLine(x: Float, peakChannel: Double, peakEnergy: Double, peakIsotope: Isotope?) {
+    private fun updateVerticalCalibrationLine(calibrationPointIndex: Int, peakChannel: Double, peakEnergy: Double, peakIsotope: Isotope?) {
         val xAxis = spectrumChart.xAxis
+        // Check if peakChannel already exists in the list
+        val existingPair = verticalCalibrationLineList[calibrationPointIndex]
+        val limitLine = xAxis.limitLines.find { existingPair.first.limit == it.limit }
+        xAxis.removeLimitLine(limitLine)
+        existingPair.let { verticalCalibrationLineList.remove(it) }
         // Create a new LimitLine and add it to the list
         val label = if(peakIsotope != null){
             "%s %.1f keV".format(peakIsotope.name, peakEnergy)
         } else {
             "%.1f keV".format(peakEnergy)
         }
-        val verticalCalibrationLine = LimitLine(x, label)
+        val verticalCalibrationLine = LimitLine(peakChannel.toFloat(), label)
         val primaryColor = resources.getColor(R.color.colorPrimaryText, null)
         verticalCalibrationLine.apply {
             lineColor = Color.MAGENTA
@@ -499,13 +502,37 @@ class SpectrumFragment : SerialConnectionFragment() {
             enableDashedLine(3f, 3f, 0f)
         }
         xAxis.addLimitLine(verticalCalibrationLine)
-        val calibrationIsotope = if(peakIsotope != null){
+        val emissionSource = if(peakIsotope != null){
             EmissionSource(peakIsotope.name, peakEnergy)
         } else {
             EmissionSource("", peakEnergy)
         }
-        verticalCalibrationLineList.add(Pair(verticalCalibrationLine, Pair(peakChannel, calibrationIsotope)))
+        verticalCalibrationLineList.add(Pair(verticalCalibrationLine, Pair(peakChannel, emissionSource)))
+        spectrumChart.invalidate() // Refresh the chart
+    }
 
+    private fun addVerticalCalibrationLine(peakChannel: Double, peakEnergy: Double, peakIsotope: Isotope?) {
+        val xAxis = spectrumChart.xAxis
+        val label = if(peakIsotope != null){
+            "%s %.1f keV".format(peakIsotope.name, peakEnergy)
+        } else {
+            "%.1f keV".format(peakEnergy)
+        }
+        val verticalCalibrationLine = LimitLine(peakChannel.toFloat(), label)
+        val primaryColor = resources.getColor(R.color.colorPrimaryText, null)
+        verticalCalibrationLine.apply {
+            lineColor = Color.MAGENTA
+            textColor = primaryColor
+            lineWidth = 2f
+            enableDashedLine(3f, 3f, 0f)
+        }
+        xAxis.addLimitLine(verticalCalibrationLine)
+        val emissionSource = if(peakIsotope != null){
+            EmissionSource(peakIsotope.name, peakEnergy)
+        } else {
+            EmissionSource("", peakEnergy)
+        }
+        verticalCalibrationLineList.add(Pair(verticalCalibrationLine, Pair(peakChannel, emissionSource)))
         spectrumChart.invalidate() // Refresh the chart
     }
 
@@ -557,31 +584,11 @@ class SpectrumFragment : SerialConnectionFragment() {
         return (resolutionWidth / pickX) * 100
     }
 
-    private fun showCalibrationDialog(tapX: Float) {
+    private fun showCalibrationDialog(calibrationPointIndex: Int, calibrationPoint: Pair<LimitLine, Pair<Double, EmissionSource>>) {
         val existing = childFragmentManager.findFragmentByTag("calibration_dialog")
         if (existing == null) {
-            val closestEntry = getValuesByTouchPoint(tapX)
-            if (closestEntry != null) {
-                val pickX = closestEntry.x
-                val calibrationDialogFragment = CalibrationDialogFragment(pickX)
-
-                // Set the listener to receive the callback
-                calibrationDialogFragment.setCalibrationDialogListener(object : CalibrationDialogFragment.CalibrationDialogListener {
-                    override fun onCalibrationCompleted(peakChannel: Double, peakEnergy: Double, isotope: Isotope?) {
-                        // Handle the values returned by the dialog
-                        // For example, you can update UI or save the calibration data
-                        // Do something with peakChannel and peakEnergy
-                        //val marker = ResolutionMarkerView(requireContext(), R.layout.marker_view)
-                        //spectrumChart.marker = marker
-                        addOrUpdateVerticalCalibrationLine(pickX, peakChannel, peakEnergy, isotope)
-                        if(verticalCalibrationLineList.size>1){
-                            updateChartWithCombinedXAxis()
-                        }
-                    }
-                })
-
-                calibrationDialogFragment.show(childFragmentManager, "calibration_dialog")
-            }
+            val calibrationDialogFragment = CalibrationDialogFragment.newInstance(calibrationPointIndex, calibrationPoint)
+            calibrationDialogFragment.show(childFragmentManager, "calibration_dialog")
         }
     }
 
@@ -714,6 +721,7 @@ class SpectrumFragment : SerialConnectionFragment() {
 
     private fun showCalibrationLimitLines() {
         val xAxis = spectrumChart.xAxis
+        xAxis.removeAllLimitLines()
         // Add all calibration limit lines back to the xAxis
         verticalCalibrationLineList.forEach { pair ->
             val limitLine = LimitLine(pair.first.limit, pair.first.label).apply {
@@ -734,5 +742,47 @@ class SpectrumFragment : SerialConnectionFragment() {
             xAxis.removeLimitLine(pair.first)
         }
         spectrumChart.invalidate() // Refresh the chart
+    }
+
+    override fun onCalibrationRemove(calibrationPointIndex: Int) {
+        //remove calibration point
+        val xAxis = spectrumChart.xAxis
+        val pair = verticalCalibrationLineList[calibrationPointIndex]
+        val limitLine = xAxis.limitLines.find { pair.first.limit == it.limit }
+        xAxis.removeLimitLine(limitLine)
+        pair.let { verticalCalibrationLineList.remove(it) }
+        // Recalculate chart data (if necessary)
+        spectrumChart.invalidate()
+    }
+
+    override fun onCalibrationUpdate(calibrationPointIndex: Int) {
+        showCalibrationDialog(calibrationPointIndex, verticalCalibrationLineList[calibrationPointIndex])
+    }
+
+    override fun onCalibrationCompleted(
+        calibrationPointIndex: Int,
+        peakChannel: Double,
+        peakEnergy: Double,
+        isotope: Isotope?
+    ) {
+        if(calibrationPointIndex<0) {
+            // new calibration point
+            addVerticalCalibrationLine(
+                peakChannel,
+                peakEnergy,
+                isotope
+            )
+        } else {
+            // update existing calibration
+            updateVerticalCalibrationLine(
+                calibrationPointIndex,
+                peakChannel,
+                peakEnergy,
+                isotope
+            )
+        }
+        if(verticalCalibrationLineList.size>1){
+            updateChartWithCombinedXAxis()
+        }
     }
 }
