@@ -6,7 +6,6 @@ import android.text.TextWatcher
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.ArrayAdapter
 import android.widget.AutoCompleteTextView
 import android.widget.Button
 import android.widget.EditText
@@ -15,7 +14,6 @@ import org.json.JSONObject
 import org.vikulin.opengammakit.adapter.IsotopeAdapter
 import org.vikulin.opengammakit.R
 import org.vikulin.opengammakit.model.Isotope
-import java.io.InputStream
 import java.util.Locale
 
 

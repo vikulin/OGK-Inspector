@@ -4,6 +4,7 @@ package org.vikulin.opengammakit
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.net.Uri
@@ -39,6 +40,7 @@ import kotlin.math.abs
 import androidx.core.graphics.createBitmap
 import com.github.mikephil.charting.components.AxisBase
 import com.github.mikephil.charting.formatter.ValueFormatter
+import org.vikulin.opengammakit.model.CalibrationData
 import org.vikulin.opengammakit.model.EmissionSource
 import org.vikulin.opengammakit.model.Isotope
 import java.io.OutputStream
@@ -101,6 +103,10 @@ class SpectrumFragment : SerialConnectionFragment() {
         })
 
         setupChart()
+
+        updateChartWithCombinedXAxis()
+
+        showCalibrationLimitLines()
 
         btnCalibration.setOnClickListener {
             fwhm = false
@@ -385,6 +391,7 @@ class SpectrumFragment : SerialConnectionFragment() {
             .replace(R.id.fragment, fragment, "command")
             .addToBackStack(null)
             .commit()
+        saveCalibrationData()
     }
 
     private fun showPeakResolution(tapX: Float) {
@@ -448,8 +455,6 @@ class SpectrumFragment : SerialConnectionFragment() {
 
     private fun addOrUpdateVerticalCalibrationLine(x: Float, peakChannel: Double, peakEnergy: Double, peakIsotope: Isotope?) {
         val xAxis = spectrumChart.xAxis
-        val primaryColor = resources.getColor(R.color.colorPrimaryText, null)
-
         // Check if peakChannel already exists in the list
         val existingPair = verticalCalibrationLineList.find { abs(it.second.first - peakChannel) < 20 }
 
@@ -464,6 +469,7 @@ class SpectrumFragment : SerialConnectionFragment() {
             "%.1f keV".format(peakEnergy)
         }
         val verticalCalibrationLine = LimitLine(x, label)
+        val primaryColor = resources.getColor(R.color.colorPrimaryText, null)
         verticalCalibrationLine.apply {
             lineColor = Color.MAGENTA
             textColor = primaryColor
@@ -477,7 +483,6 @@ class SpectrumFragment : SerialConnectionFragment() {
             EmissionSource("", peakEnergy)
         }
         verticalCalibrationLineList.add(Pair(verticalCalibrationLine, Pair(peakChannel, calibrationIsotope)))
-
 
         spectrumChart.invalidate() // Refresh the chart
     }
@@ -639,5 +644,76 @@ class SpectrumFragment : SerialConnectionFragment() {
             // Start the sharing activity
             context.startActivity(Intent.createChooser(shareIntent, "Share Screenshot"))
         }
+    }
+
+    private val calibrationPreferencesKey = "calibration_data"
+    private lateinit var sharedPreferences: SharedPreferences
+
+    override fun onAttach(context: Context) {
+        super.onAttach(context)
+        sharedPreferences = context.getSharedPreferences("CalibrationPrefs", Context.MODE_PRIVATE)
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        loadCalibrationData() // Load calibration data when the fragment is created
+    }
+
+    // Function to save calibration data
+    private fun saveCalibrationData() {
+        val editor = sharedPreferences.edit()
+
+        // Convert the calibration data list to JSON using kotlinx.serialization
+        val serializedData = Json.encodeToString(verticalCalibrationLineList.map {
+            CalibrationData(
+                limitLineValue = it.first.limit,
+                limitLineLabel = it.first.label,
+                channel = it.second.first,
+                emissionSource = it.second.second
+            )
+        })
+
+        editor.putString(calibrationPreferencesKey, serializedData)
+        editor.apply() // Commit changes asynchronously
+    }
+
+    // Function to load calibration data
+    private fun loadCalibrationData() {
+        val serializedData = sharedPreferences.getString(calibrationPreferencesKey, null) ?: return
+
+        // Deserialize the JSON back into the calibration list using kotlinx.serialization
+        val calibrationDataList: List<CalibrationData> = Json.decodeFromString(serializedData)
+
+        // Reconstruct the verticalCalibrationLineList
+        verticalCalibrationLineList.clear()
+        calibrationDataList.forEach {
+            val limitLine = LimitLine(it.limitLineValue, it.limitLineLabel)
+            val emissionSource = it.emissionSource
+            verticalCalibrationLineList.add(Pair(limitLine, Pair(it.channel, emissionSource)))
+        }
+    }
+
+    private fun showCalibrationLimitLines() {
+        val xAxis = spectrumChart.xAxis
+        // Add all calibration limit lines back to the xAxis
+        verticalCalibrationLineList.forEach { pair ->
+            val limitLine = LimitLine(pair.first.limit, pair.first.label).apply {
+                lineColor = Color.MAGENTA
+                textColor = resources.getColor(R.color.colorPrimaryText, null)
+                lineWidth = 2f
+                enableDashedLine(3f, 3f, 0f)
+            }
+            xAxis.addLimitLine(limitLine)
+        }
+        spectrumChart.invalidate() // Refresh the chart
+    }
+
+    private fun hideCalibrationLimitLines() {
+        val xAxis = spectrumChart.xAxis
+        // Remove all calibration limit lines from the xAxis
+        verticalCalibrationLineList.forEach { pair ->
+            xAxis.removeLimitLine(pair.first)
+        }
+        spectrumChart.invalidate() // Refresh the chart
     }
 }
