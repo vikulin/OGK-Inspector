@@ -94,7 +94,7 @@ class CalibrationDialogFragment : DialogFragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         val editPeak = view.findViewById<AutoCompleteTextView>(R.id.editPeak)
         val editChannel = view.findViewById<EditText>(R.id.editChannel)
-        val btnCalibrate = view.findViewById<Button>(R.id.btnCalibrate)
+        val btnCalibrate = view.findViewById<Button>(R.id.btnSave)
         val btnCancel = view.findViewById<Button>(R.id.btnCancel)
         editChannel.setText(String.format(Locale.US, "%.1f", calibrationPoint.second.first))
 

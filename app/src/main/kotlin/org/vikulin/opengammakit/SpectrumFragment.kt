@@ -537,7 +537,6 @@ class SpectrumFragment : SerialConnectionFragment(),
             enableDashedLine(3f, 3f, 0f)
             labelPosition = LimitLine.LimitLabelPosition.RIGHT_BOTTOM
             yOffset = 40.0f
-            
         }
         xAxis.addLimitLine(verticalCalibrationLine)
         val emissionSource = if(peakIsotope != null){

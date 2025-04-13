@@ -2,47 +2,33 @@
 <androidx.constraintlayout.widget.ConstraintLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:id="@+id/calibrationDialogLayout"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:padding="20dp"
+    android:orientation="vertical"
     android:background="@drawable/dialog_rounded_corner">
 
-    <!-- Peak 1 Label -->
     <TextView
-        android:id="@+id/labelUpdateOrRemove"
-        android:layout_width="0dp"
+        android:id="@+id/thresholdLabel"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textSize="20sp"
-        android:textStyle="bold"
-        android:textAlignment="center"
-        android:text="Enter reference peak energy"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginTop="18dp"
-        android:textColor="@color/colorPrimaryText"/>
-
-    <AutoCompleteTextView
-        android:id="@+id/editPeak"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="18dp"
-        android:hint="keV (e.g., Cs-137: 661.7keV)"
-        android:popupBackground="@color/colorPrimaryTextDark"
+        android:gravity="center"
+        android:text="Enter counter threshold alarm"
+        android:textColor="@color/colorPrimaryText"
+        android:textSize="18sp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/labelUpdateOrRemove" />
+        app:layout_constraintTop_toTopOf="parent" />
 
     <EditText
-        android:id="@+id/editChannel"
+        android:id="@+id/editThreshold"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:hint="Channel"
-        android:inputType="numberDecimal"
+        android:hint="Threshold"
+        android:inputType="number"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/editPeak"
+        app:layout_constraintTop_toBottomOf="@+id/thresholdLabel"
         android:layout_marginTop="18dp"/>
 
     <Button
@@ -58,8 +44,8 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="18dp"
-        android:text="Add"
+        android:text="Save"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/editChannel" />
+        app:layout_constraintTop_toBottomOf="@+id/editThreshold" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

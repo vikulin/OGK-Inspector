@@ -1,6 +1,6 @@
 package org.vikulin.opengammakit
 
-import android.content.res.Configuration
+import android.content.Context
 import android.graphics.Color
 import android.os.Bundle
 import android.os.Handler
@@ -8,8 +8,6 @@ import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
-import android.widget.EditText
 import android.widget.TextView
 import androidx.fragment.app.Fragment
 import com.github.mikephil.charting.charts.LineChart
@@ -23,28 +21,50 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 import android.media.MediaPlayer
-import android.widget.LinearLayout
+import android.view.GestureDetector
+import android.view.MotionEvent
+import android.widget.ImageButton
 import androidx.lifecycle.lifecycleScope
 import com.github.mikephil.charting.components.AxisBase
 import com.github.mikephil.charting.components.Description
+import com.github.mikephil.charting.components.YAxis
 import com.github.mikephil.charting.formatter.ValueFormatter
+import org.vikulin.opengammakit.view.CounterThresholdDialogFragment
 
-class CounterFragment : Fragment() {
+class CounterFragment : Fragment(), CounterThresholdDialogFragment.CounterThresholdDialogListener {
 
     private lateinit var currentRateTextView: TextView
-    private lateinit var thresholdEditText: EditText
-    private lateinit var setThresholdButton: Button
+    private lateinit var btnThreshold: ImageButton
     private lateinit var currentTimeTextView: TextView
     private lateinit var rateLineChart: LineChart
 
-    private var threshold = 100
+    private val PREF_NAME = "counter_preferences"
+    private val KEY_THRESHOLD = "threshold"
+    private var threshold: Int = 9999999 // Default value
     private var isBlinking = false
     private var alarmJob: Job? = null
     private var mediaPlayer: MediaPlayer? = null
     private val handler = Handler(Looper.getMainLooper())
+    private lateinit var gestureDetector: GestureDetector
 
     private lateinit var lineDataSet: LineDataSet
 
+    private fun saveThreshold() {
+        val sharedPreferences = requireContext().getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+        val editor = sharedPreferences.edit()
+        editor.putInt(KEY_THRESHOLD, threshold)
+        editor.apply() // Asynchronously save the value
+    }
+
+    private fun loadThreshold() {
+        val sharedPreferences = requireContext().getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+        threshold = sharedPreferences.getInt(KEY_THRESHOLD, 9999999) // Default to 9999999 if not set
+    }
+
+    override fun onPause() {
+        super.onPause()
+        saveThreshold() // Persist the threshold value
+    }
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
@@ -52,6 +72,7 @@ class CounterFragment : Fragment() {
             floatArrayOf(entry.x, entry.y)
         }.toTypedArray()
         outState.putSerializable("GRAPH_ENTRIES", entriesArray)
+        outState.putInt("COUNTER_THRESHOLD", threshold)
     }
 
     override fun onCreateView(
@@ -60,15 +81,18 @@ class CounterFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View {
         val view = inflater.inflate(R.layout.fragment_counter, container, false)
+        loadThreshold() // Load persisted threshold value
 
         currentRateTextView = view.findViewById(R.id.currentRateTextView)
-        thresholdEditText = view.findViewById(R.id.thresholdEditText)
-        setThresholdButton = view.findViewById(R.id.setThresholdButton)
+        btnThreshold = view.findViewById(R.id.btnThreshold)
         currentTimeTextView = view.findViewById(R.id.currentTimeTextView)
         rateLineChart = view.findViewById(R.id.rateLineChart)
 
-        setThresholdButton.setOnClickListener {
-            threshold = thresholdEditText.text.toString().toIntOrNull() ?: 100
+        btnThreshold.setOnClickListener {
+            //set limit line for the threshold
+            val counterThresholdDialog = CounterThresholdDialogFragment.newInstance(threshold)
+            counterThresholdDialog.show(childFragmentManager, "counter_threshold_dialog_fragment")
+            System.out.println()
         }
 
         setupLineChart()
@@ -85,9 +109,49 @@ class CounterFragment : Fragment() {
             rateLineChart.invalidate()
         }
 
+        savedInstanceState?.getInt("COUNTER_THRESHOLD")?.let {
+            threshold = it
+        } ?: run { }
+
+        setCounterThreshold(threshold)
+
         startUpdatingRate()
 
         return view
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        gestureDetector = GestureDetector(requireContext(), object : GestureDetector.SimpleOnGestureListener() {
+            override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+                val touchPoint = getTouchPoint(e.y)
+                threshold = touchPoint.toInt()
+                setCounterThreshold(threshold)
+                return true
+            }
+        })
+    }
+
+    private fun setCounterThreshold(threshold: Int){
+        val exceedLine = LimitLine(threshold.toFloat(), "Max ${threshold.toInt()}")
+        val primaryColor = resources.getColor(R.color.colorPrimaryText, null)
+        exceedLine.apply {
+            lineColor = Color.RED
+            lineWidth = 2f
+            textColor = primaryColor
+            labelPosition = LimitLine.LimitLabelPosition.LEFT_TOP
+        }
+        rateLineChart.axisLeft.removeAllLimitLines()
+        rateLineChart.axisLeft.addLimitLine(exceedLine)
+    }
+
+    private fun setupChartTouchListener() {
+        rateLineChart.setOnTouchListener { v, event ->
+            // Let gestureDetector process it
+            gestureDetector.onTouchEvent(event)
+            // Important: allow LineChart to handle other gestures (zoom, drag)
+            rateLineChart.onTouchEvent(event)
+        }
     }
 
     private fun setupLineChart() {
@@ -113,7 +177,7 @@ class CounterFragment : Fragment() {
         rateLineChart.apply {
             data = LineData(lineDataSet)
             description.isEnabled = false
-            setTouchEnabled(false)
+            setTouchEnabled(true)
             setScaleEnabled(false)
             legend.isEnabled = true
             xAxis.apply {
@@ -143,6 +207,7 @@ class CounterFragment : Fragment() {
             legend.textColor = primaryColor
             invalidate()
         }
+        setupChartTouchListener()
     }
 
     private fun startUpdatingRate() {
@@ -177,18 +242,25 @@ class CounterFragment : Fragment() {
         rateLineChart.invalidate()
 
         // UI updates
-        currentRateTextView.text = "$rate cps"
+        currentRateTextView.text = "$rate"
         currentTimeTextView.text = SimpleDateFormat("YYYY-mm-dd", Locale.getDefault()).format(Date())
 
         if (rate > threshold) {
-            triggerAlert(rate)
+            triggerAlert()
         } else {
             resetAlert()
         }
     }
 
+    private fun getTouchPoint(tapY: Float): Double {
+        val tapX = rateLineChart.height / 2f
+        val transformer = rateLineChart.getTransformer(YAxis.AxisDependency.LEFT)
+        val touchPoint = transformer.getValuesByTouchPoint(tapX, tapY)
+        val tappedY = touchPoint.y
+        return tappedY
+    }
 
-    private fun triggerAlert(rate: Int) {
+    private fun triggerAlert() {
         currentRateTextView.setTextColor(Color.RED)
 
         if (!isBlinking) {
@@ -210,12 +282,6 @@ class CounterFragment : Fragment() {
         if (mediaPlayer?.isPlaying == false) {
             mediaPlayer?.start()
         }
-
-        val exceedLine = LimitLine(rate.toFloat(), "Exceeded")
-        exceedLine.lineColor = Color.RED
-        exceedLine.lineWidth = 2f
-        rateLineChart.axisLeft.removeAllLimitLines()
-        rateLineChart.axisLeft.addLimitLine(exceedLine)
     }
 
     private fun resetAlert() {
@@ -227,8 +293,6 @@ class CounterFragment : Fragment() {
         mediaPlayer?.stop()
         mediaPlayer?.release()
         mediaPlayer = null
-
-        rateLineChart.axisLeft.removeAllLimitLines()
     }
 
     override fun onDestroyView() {
@@ -236,5 +300,10 @@ class CounterFragment : Fragment() {
         alarmJob?.cancel()
         mediaPlayer?.stop()
         mediaPlayer?.release()
+    }
+
+    override fun onThreshold(counterThreshold: Int) {
+        threshold = counterThreshold
+        setCounterThreshold(threshold)
     }
 }
