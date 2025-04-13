@@ -45,6 +45,7 @@ import org.vikulin.opengammakit.model.Isotope
 import java.io.OutputStream
 import androidx.core.content.edit
 import org.vikulin.opengammakit.view.CalibrationUpdateOrRemoveDialogFragment
+import org.vikulin.opengammakit.view.ErrorDialogFragment
 
 class SpectrumFragment : SerialConnectionFragment(),
     CalibrationUpdateOrRemoveDialogFragment.CalibrationDialogListener,
@@ -788,24 +789,88 @@ class SpectrumFragment : SerialConnectionFragment(),
         peakEnergy: Double,
         isotope: Isotope?
     ) {
-        if(calibrationPointIndex<0) {
-            // new calibration point
-            addVerticalCalibrationLine(
-                peakChannel,
-                peakEnergy,
-                isotope
-            )
-            if(verticalCalibrationLineList.size > 1){
+
+        if(!isValid(peakChannel = peakChannel, peakEnergy = peakEnergy)){
+            return
+        }
+
+        if (calibrationPointIndex < 0) {
+            // new calibration point creation
+            addVerticalCalibrationLine(peakChannel, peakEnergy, isotope)
+            if (verticalCalibrationLineList.size > 1) {
                 updateChartWithCombinedXAxis()
             }
         } else {
-            // update existing calibration
-            updateVerticalCalibrationLine(
-                calibrationPointIndex,
-                peakChannel,
-                peakEnergy,
-                isotope
-            )
+            // update an existing calibration point
+            updateVerticalCalibrationLine(calibrationPointIndex, peakChannel, peakEnergy, isotope)
         }
+    }
+
+    private fun isValidChannel(channel: Double): Boolean {
+        // Replace with your actual valid channel range (example: 0 to 4096)
+        val minChannel = 0.0
+        val maxChannel = spectrumDataSet!!.entryCount
+        return channel in minChannel..maxChannel.toDouble()
+    }
+
+    private fun isValidEnergy(energy: Double): Boolean {
+        // Replace with your actual valid energy range (example: greater than 0)
+        val minEnergy = 0.1
+        val maxEnergy = 10000.0 // Arbitrary upper limit for energy
+        return energy in minEnergy..maxEnergy
+    }
+
+    private fun isValid(peakChannel: Double, peakEnergy: Double): Boolean{
+
+        if (!isValidChannel(peakChannel)) {
+            val error = "Invalid channel value: $peakChannel. The channel must be within the valid range."
+            val errorDialog = ErrorDialogFragment.newInstance(error)
+            errorDialog.show(childFragmentManager, "error_dialog_fragment")
+            return false
+        }
+
+        if (!isValidEnergy(peakEnergy)) {
+            val error = "Invalid energy value: $peakEnergy. The energy must be within the valid range."
+            val errorDialog = ErrorDialogFragment.newInstance(error)
+            errorDialog.show(childFragmentManager, "error_dialog_fragment")
+            return false
+        }
+
+        if (!isChannelEnergyPairValid(peakChannel, peakEnergy)) {
+            val error = "Channel-energy pair ($peakChannel, $peakEnergy) conflicts with existing ranges."
+            val errorDialog = ErrorDialogFragment.newInstance(error)
+            errorDialog.show(childFragmentManager, "error_dialog_fragment")
+            return false
+        }
+        return true
+    }
+
+    private fun isChannelEnergyPairValid(channel: Double, energy: Double): Boolean {
+        // Iterate through the existing verticalCalibrationLineList
+        verticalCalibrationLineList.forEach { pair ->
+            val existingChannel = pair.second.first
+            val existingEnergy = pair.second.second.energy
+
+            // Case 1: New channel (c2) > existing channel (c1)
+            if (channel > existingChannel && energy <= existingEnergy) {
+                println("Invalid pair: New channel $channel is greater than existing channel $existingChannel, but energy $energy is not greater than existing energy $existingEnergy.")
+                return false
+            }
+
+            // Case 2: New channel (c2) < existing channel (c1)
+            if (channel < existingChannel && energy >= existingEnergy) {
+                println("Invalid pair: New channel $channel is less than existing channel $existingChannel, but energy $energy is not less than existing energy $existingEnergy.")
+                return false
+            }
+
+            // Case 3: New channel matches existing channel exactly (c2 == c1)
+            if (channel == existingChannel) {
+                println("Invalid pair: New channel $channel matches an existing channel $existingChannel. Duplicates are not allowed.")
+                return false
+            }
+        }
+
+        // If no conflicting pairs are found, return true
+        return true
     }
 }
