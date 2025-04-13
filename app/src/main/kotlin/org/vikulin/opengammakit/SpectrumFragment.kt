@@ -44,9 +44,6 @@ import org.vikulin.opengammakit.model.EmissionSource
 import org.vikulin.opengammakit.model.Isotope
 import java.io.OutputStream
 import androidx.core.content.edit
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import org.vikulin.opengammakit.view.CalibrationUpdateOrRemoveDialogFragment
 
 class SpectrumFragment : SerialConnectionFragment(),
@@ -126,6 +123,9 @@ class SpectrumFragment : SerialConnectionFragment(),
             }
         })
 
+
+        initChart()
+
         setupChart()
 
         updateChartWithCombinedXAxis()
@@ -151,12 +151,6 @@ class SpectrumFragment : SerialConnectionFragment(),
         }
     }
 
-    fun runOnMainThread(action: suspend () -> Unit) {
-        CoroutineScope(Dispatchers.Main).launch {
-            action()
-        }
-    }
-
     override fun onConnectionSuccess() {
         super.onConnectionSuccess()
         super.setDtr(true)
@@ -169,7 +163,7 @@ class SpectrumFragment : SerialConnectionFragment(),
         // Add a message here
     }
 
-    private fun setupChart() {
+    private fun initChart(){
         val parsed = Json.decodeFromString<GammaKitData>(zeroedData)
         val spectrum = parsed.data.firstOrNull()?.resultData?.energySpectrum ?: return
 
@@ -184,14 +178,26 @@ class SpectrumFragment : SerialConnectionFragment(),
             setDrawValues(false)
             color = resources.getColor(android.R.color.holo_blue_light, null)
         }
+    }
+
+    private fun setupChart() {
 
         val primaryColor = resources.getColor(R.color.colorPrimaryText, null)
 
         spectrumChart.apply {
             data = LineData(spectrumDataSet)
-            xAxis.labelRotationAngle = 0f
-            xAxis.position = XAxis.XAxisPosition.BOTTOM
-            xAxis.textColor = primaryColor
+            xAxis.apply {
+                labelRotationAngle = 0f
+                position = XAxis.XAxisPosition.BOTTOM
+                textColor = primaryColor
+                position = XAxis.XAxisPosition.BOTTOM
+                textColor = primaryColor
+                valueFormatter = object : ValueFormatter() {
+                    override fun getAxisLabel(value: Float, axis: AxisBase?): String {
+                        return value.toInt().toString()
+                    }
+                }
+            }
             axisRight.isEnabled = true
             axisLeft.textColor = primaryColor
             description = Description().apply {
@@ -500,6 +506,9 @@ class SpectrumFragment : SerialConnectionFragment(),
             textColor = primaryColor
             lineWidth = 2f
             enableDashedLine(3f, 3f, 0f)
+            labelPosition = LimitLine.LimitLabelPosition.RIGHT_BOTTOM
+            yOffset = 40.0f
+            
         }
         xAxis.addLimitLine(verticalCalibrationLine)
         val emissionSource = if(peakIsotope != null){
@@ -525,6 +534,9 @@ class SpectrumFragment : SerialConnectionFragment(),
             textColor = primaryColor
             lineWidth = 2f
             enableDashedLine(3f, 3f, 0f)
+            labelPosition = LimitLine.LimitLabelPosition.RIGHT_BOTTOM
+            yOffset = 40.0f
+            
         }
         xAxis.addLimitLine(verticalCalibrationLine)
         val emissionSource = if(peakIsotope != null){
@@ -714,6 +726,11 @@ class SpectrumFragment : SerialConnectionFragment(),
         verticalCalibrationLineList.clear()
         calibrationDataList.forEach {
             val limitLine = LimitLine(it.limitLineValue, it.limitLineLabel)
+            limitLine.apply {
+                labelPosition = LimitLine.LimitLabelPosition.RIGHT_BOTTOM
+                yOffset = 40.0f
+                
+            }
             val emissionSource = it.emissionSource
             verticalCalibrationLineList.add(Pair(limitLine, Pair(it.channel, emissionSource)))
         }
@@ -729,6 +746,9 @@ class SpectrumFragment : SerialConnectionFragment(),
                 textColor = resources.getColor(R.color.colorPrimaryText, null)
                 lineWidth = 2f
                 enableDashedLine(3f, 3f, 0f)
+                labelPosition = LimitLine.LimitLabelPosition.RIGHT_BOTTOM
+                yOffset = 40.0f
+                
             }
             xAxis.addLimitLine(limitLine)
         }
@@ -752,6 +772,9 @@ class SpectrumFragment : SerialConnectionFragment(),
         xAxis.removeLimitLine(limitLine)
         pair.let { verticalCalibrationLineList.remove(it) }
         // Recalculate chart data (if necessary)
+        if(verticalCalibrationLineList.size < 2){
+            setupChart()
+        }
         spectrumChart.invalidate()
     }
 
@@ -772,6 +795,9 @@ class SpectrumFragment : SerialConnectionFragment(),
                 peakEnergy,
                 isotope
             )
+            if(verticalCalibrationLineList.size > 1){
+                updateChartWithCombinedXAxis()
+            }
         } else {
             // update existing calibration
             updateVerticalCalibrationLine(
@@ -780,9 +806,6 @@ class SpectrumFragment : SerialConnectionFragment(),
                 peakEnergy,
                 isotope
             )
-        }
-        if(verticalCalibrationLineList.size>1){
-            updateChartWithCombinedXAxis()
         }
     }
 }
