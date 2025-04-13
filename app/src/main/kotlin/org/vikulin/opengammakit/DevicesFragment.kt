@@ -17,6 +17,7 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.ListFragment
 import com.hoho.android.usbserial.driver.UsbSerialDriver
 import com.hoho.android.usbserial.driver.UsbSerialProber
+import org.vikulin.opengammakit.CounterFragment
 import org.vikulin.opengammakit.CustomProber
 import org.vikulin.opengammakit.InfoFragment
 import org.vikulin.opengammakit.R
@@ -49,7 +50,7 @@ class DevicesFragment : ListFragment() {
                 val info = view.findViewById<ImageButton>(R.id.info)
                 val terminal = view.findViewById<ImageButton>(R.id.terminal)
                 val spectrometer = view.findViewById<ImageButton>(R.id.spectrometer)
-
+                val counter = view.findViewById<ImageButton>(R.id.counter)
                 val driver = when {
                     item.driver == null -> "<no driver>"
                     item.driver.ports.size == 1 -> item.driver.javaClass.simpleName.replace("SerialDriver", "")
@@ -59,17 +60,17 @@ class DevicesFragment : ListFragment() {
                 val vendor = item.device.vendorId
                 val product = item.device.productId
                 deviceId.text = item.device.deviceId.toString()
-                terminal.setOnClickListener {
+                counter.setOnClickListener {
                     val args = Bundle().apply {
                         putInt("device", item.device.deviceId)
                         putInt("port", item.port)
                         putInt("baud", baudRate)
                         putBoolean("withIoManager", withIoManager)
                     }
-                    val fragment: Fragment = TerminalFragment()
+                    val fragment: Fragment = CounterFragment()
                     fragment.arguments = args
                     parentFragmentManager.beginTransaction()
-                        .replace(R.id.fragment, fragment, "terminal")
+                        .replace(R.id.fragment, fragment, "counter")
                         .addToBackStack(null)
                         .commit()
                 }
@@ -84,6 +85,20 @@ class DevicesFragment : ListFragment() {
                     fragment.arguments = args
                     parentFragmentManager.beginTransaction()
                         .replace(R.id.fragment, fragment, "spectrometer")
+                        .addToBackStack(null)
+                        .commit()
+                }
+                terminal.setOnClickListener {
+                    val args = Bundle().apply {
+                        putInt("device", item.device.deviceId)
+                        putInt("port", item.port)
+                        putInt("baud", baudRate)
+                        putBoolean("withIoManager", withIoManager)
+                    }
+                    val fragment: Fragment = TerminalFragment()
+                    fragment.arguments = args
+                    parentFragmentManager.beginTransaction()
+                        .replace(R.id.fragment, fragment, "terminal")
                         .addToBackStack(null)
                         .commit()
                 }
