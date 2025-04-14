@@ -9,7 +9,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
-import androidx.fragment.app.Fragment
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.components.LimitLine
 import com.github.mikephil.charting.components.XAxis
@@ -32,7 +31,9 @@ import com.github.mikephil.charting.formatter.ValueFormatter
 import org.vikulin.opengammakit.model.OpenGammaKitCommands
 import org.vikulin.opengammakit.view.CounterThresholdDialogFragment
 
-class CounterFragment : SerialConnectionFragment(), CounterThresholdDialogFragment.CounterThresholdDialogListener {
+class CounterFragment : SerialConnectionFragment(),
+    CounterThresholdDialogFragment.SaveThresholdDialogListener,
+    CounterThresholdDialogFragment.ChooseThresholdDialogListener{
 
     private lateinit var currentRateTextView: TextView
     private lateinit var btnThreshold: ImageButton
@@ -48,6 +49,7 @@ class CounterFragment : SerialConnectionFragment(), CounterThresholdDialogFragme
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var gestureDetector: GestureDetector
     private lateinit var lineDataSet: LineDataSet
+    private var chooseThreshold = false
 
     override fun onConnectionSuccess() {
         super.onConnectionSuccess()
@@ -149,9 +151,12 @@ class CounterFragment : SerialConnectionFragment(), CounterThresholdDialogFragme
         super.onViewCreated(view, savedInstanceState)
         gestureDetector = GestureDetector(requireContext(), object : GestureDetector.SimpleOnGestureListener() {
             override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
-                val touchPoint = getTouchPoint(e.y)
-                threshold = touchPoint.toInt()
-                setCounterThreshold(threshold)
+                if(chooseThreshold) {
+                    val touchPoint = getTouchPoint(e.y)
+                    threshold = touchPoint.toInt()
+                    setCounterThreshold(threshold)
+                    chooseThreshold = false
+                }
                 return true
             }
         })
@@ -327,8 +332,12 @@ class CounterFragment : SerialConnectionFragment(), CounterThresholdDialogFragme
         mediaPlayer?.release()
     }
 
-    override fun onThreshold(counterThreshold: Int) {
+    override fun onSave(counterThreshold: Int) {
         threshold = counterThreshold
         setCounterThreshold(threshold)
+    }
+
+    override fun onChoose() {
+        chooseThreshold = true
     }
 }

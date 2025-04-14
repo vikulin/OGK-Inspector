@@ -13,23 +13,46 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center"
-        android:text="Enter counter threshold alarm"
+        android:text="Enter counter threshold value"
         android:textColor="@color/colorPrimaryText"
         android:textSize="18sp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <EditText
-        android:id="@+id/editThreshold"
+    <LinearLayout
+        android:id="@+id/editThresholdContainer"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:hint="Threshold"
-        android:inputType="number"
+        android:orientation="horizontal"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/thresholdLabel"
-        android:layout_marginTop="18dp"/>
+        android:gravity="center_vertical"
+        android:layout_marginTop="28dp"
+        android:layout_marginEnd="8dp">
+
+        <!-- EditText: Expands to take remaining space -->
+        <EditText
+            android:id="@+id/editThreshold"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:hint="Threshold"
+            android:inputType="number"
+            android:layout_weight="1"/>
+
+        <!-- ImageButton: Fixed size -->
+        <ImageButton
+            android:id="@+id/btnChooseThreshold"
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:layout_marginStart="10dp"
+            android:src="@drawable/ic_touchpoint"
+            android:background="@android:color/transparent"
+            app:tint="@color/colorPrimary"
+            android:contentDescription="Touch"/>
+
+    </LinearLayout>
 
     <Button
         android:id="@+id/btnCancel"
@@ -43,9 +66,9 @@
         android:id="@+id/btnSave"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="18dp"
+        android:layout_marginTop="28dp"
         android:text="Save"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/editThreshold" />
+        app:layout_constraintTop_toBottomOf="@+id/editThresholdContainer" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

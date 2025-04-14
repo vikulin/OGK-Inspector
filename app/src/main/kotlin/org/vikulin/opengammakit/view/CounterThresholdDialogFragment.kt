@@ -6,6 +6,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.ImageButton
 import android.widget.TextView
 import androidx.fragment.app.DialogFragment
 import org.vikulin.opengammakit.R
@@ -28,17 +29,23 @@ class CounterThresholdDialogFragment : DialogFragment() {
         super.onAttach(context)
 
         // Try to attach the listener to the host activity or parent fragment
-        listener = when {
-            parentFragment is CounterThresholdDialogListener -> parentFragment as CounterThresholdDialogListener
-            context is CounterThresholdDialogListener -> context
-            else -> throw IllegalStateException("Host must implement CounterThresholdDialogListener")
+        saveThresholdListener = when {
+            parentFragment is SaveThresholdDialogListener -> parentFragment as SaveThresholdDialogListener
+            context is SaveThresholdDialogListener -> context
+            else -> throw IllegalStateException("Host must implement SaveThresholdDialogListener")
+        }
+        chooseThresholdListener = when {
+            parentFragment is ChooseThresholdDialogListener -> parentFragment as ChooseThresholdDialogListener
+            context is ChooseThresholdDialogListener -> context
+            else -> throw IllegalStateException("Host must implement ChooseThresholdDialogListener")
         }
     }
 
     override fun onDetach() {
         super.onDetach()
         // Clear the reference to the listener to avoid memory leaks
-        listener = null
+        saveThresholdListener = null
+        chooseThresholdListener = null
     }
 
     override fun onCreateView(
@@ -50,6 +57,7 @@ class CounterThresholdDialogFragment : DialogFragment() {
         val thresholdTextView = view.findViewById<TextView>(R.id.editThreshold)
         val btnCancel = view.findViewById<Button>(R.id.btnCancel)
         val btnSave = view.findViewById<Button>(R.id.btnSave)
+        val btnChooseThreshold = view.findViewById<ImageButton>(R.id.btnChooseThreshold)
         // Retrieve the error message from arguments
         val threshold = arguments?.getInt(COUNTER_THRESHOLD) ?: ""
         thresholdTextView.text = threshold.toString()
@@ -58,16 +66,27 @@ class CounterThresholdDialogFragment : DialogFragment() {
             dismiss() // Close the dialog
         }
         btnSave.setOnClickListener {
-            listener?.onThreshold(thresholdTextView.text?.toString()!!.toInt())
+            saveThresholdListener?.onSave(thresholdTextView.text?.toString()!!.toInt())
+            dismiss()
+        }
+        btnChooseThreshold.setOnClickListener {
+            chooseThresholdListener?.onChoose()
             dismiss()
         }
 
         return view
     }
 
-    interface CounterThresholdDialogListener {
-        fun onThreshold(counterThreshold: Int)
+    interface SaveThresholdDialogListener {
+        fun onSave(counterThreshold: Int)
     }
 
-    private var listener: CounterThresholdDialogListener? = null
+    private var saveThresholdListener: SaveThresholdDialogListener? = null
+
+    // Define the callback interface
+    interface ChooseThresholdDialogListener {
+        fun onChoose()
+    }
+
+    private var chooseThresholdListener: ChooseThresholdDialogListener? = null
 }
