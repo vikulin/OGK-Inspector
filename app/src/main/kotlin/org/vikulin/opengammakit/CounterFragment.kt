@@ -37,6 +37,7 @@ class CounterFragment : SerialConnectionFragment(),
 
     private lateinit var currentRateTextView: TextView
     private lateinit var btnThreshold: ImageButton
+    private lateinit var btnTrigger: ImageButton
     private lateinit var currentTimeTextView: TextView
     private lateinit var rateLineChart: LineChart
 
@@ -113,15 +114,18 @@ class CounterFragment : SerialConnectionFragment(),
         loadThreshold() // Load persisted threshold value
 
         currentRateTextView = view.findViewById(R.id.currentRateTextView)
-        btnThreshold = view.findViewById(R.id.btnThreshold)
         currentTimeTextView = view.findViewById(R.id.currentTimeTextView)
+        btnThreshold = view.findViewById(R.id.btnThreshold)
+        btnTrigger = view.findViewById(R.id.btnTrigger)
         rateLineChart = view.findViewById(R.id.rateLineChart)
 
         btnThreshold.setOnClickListener {
             //set limit line for the threshold
             val counterThresholdDialog = CounterThresholdDialogFragment.newInstance(threshold)
             counterThresholdDialog.show(childFragmentManager, "counter_threshold_dialog_fragment")
-            System.out.println()
+        }
+        btnTrigger.setOnClickListener {
+
         }
 
         setupLineChart()

@@ -68,4 +68,18 @@
         android:layout_margin="50dp"
         app:tint="@color/colorPrimaryText"/>
 
+    <ImageButton
+        android:id="@+id/btnTrigger"
+        android:layout_width="50dp"
+        android:layout_height="50dp"
+        android:layout_marginTop="25dp"
+        android:layout_marginBottom="0dp"
+        android:layout_marginStart="50dp"
+        android:layout_marginEnd="50dp"
+        android:background="@android:color/transparent"
+        app:layout_constraintEnd_toEndOf="@+id/rateLineChart"
+        app:layout_constraintTop_toBottomOf="@+id/btnThreshold"
+        app:srcCompat="@drawable/ic_trigger"
+        app:tint="@color/colorPrimaryText" />
+
 </androidx.constraintlayout.widget.ConstraintLayout>
