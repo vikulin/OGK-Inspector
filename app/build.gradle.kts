@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "org.vikulin.opengammakit"
+    namespace = "io.github.vikulin.opengammakit"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "org.vikulin.opengammakit"
+        applicationId = "io.github.vikulin.opengammakit"
         minSdk = 24
         targetSdk = 35
         versionCode = 1
