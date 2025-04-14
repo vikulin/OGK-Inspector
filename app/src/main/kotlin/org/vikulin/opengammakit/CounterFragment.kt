@@ -29,9 +29,10 @@ import com.github.mikephil.charting.components.AxisBase
 import com.github.mikephil.charting.components.Description
 import com.github.mikephil.charting.components.YAxis
 import com.github.mikephil.charting.formatter.ValueFormatter
+import org.vikulin.opengammakit.model.OpenGammaKitCommands
 import org.vikulin.opengammakit.view.CounterThresholdDialogFragment
 
-class CounterFragment : Fragment(), CounterThresholdDialogFragment.CounterThresholdDialogListener {
+class CounterFragment : SerialConnectionFragment(), CounterThresholdDialogFragment.CounterThresholdDialogListener {
 
     private lateinit var currentRateTextView: TextView
     private lateinit var btnThreshold: ImageButton
@@ -46,8 +47,19 @@ class CounterFragment : Fragment(), CounterThresholdDialogFragment.CounterThresh
     private var mediaPlayer: MediaPlayer? = null
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var gestureDetector: GestureDetector
-
     private lateinit var lineDataSet: LineDataSet
+
+    override fun onConnectionSuccess() {
+        super.onConnectionSuccess()
+        super.setDtr(true)
+        val command = OpenGammaKitCommands().setOut("events" + '\n').toByteArray()
+        super.send(command)
+    }
+
+    override fun onConnectionFailed() {
+        super.onConnectionFailed()
+        // Add a message here
+    }
 
     private fun saveThreshold() {
         val sharedPreferences = requireContext().getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
@@ -64,6 +76,21 @@ class CounterFragment : Fragment(), CounterThresholdDialogFragment.CounterThresh
     override fun onPause() {
         super.onPause()
         saveThreshold() // Persist the threshold value
+    }
+
+    override fun receive(bytes: ByteArray) {
+        val message = String(bytes).trim()
+        val regex = """\[(\d+)]""".toRegex()
+        val match = regex.find(message)
+
+        match?.groups?.get(1)?.value?.toIntOrNull()?.let { count ->
+            requireActivity().runOnUiThread {
+                updateRate(count)
+            }
+        }
+    }
+
+    override fun status(str: String) {
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -114,8 +141,6 @@ class CounterFragment : Fragment(), CounterThresholdDialogFragment.CounterThresh
         } ?: run { }
 
         setCounterThreshold(threshold)
-
-        startUpdatingRate()
 
         return view
     }
@@ -210,15 +235,15 @@ class CounterFragment : Fragment(), CounterThresholdDialogFragment.CounterThresh
         setupChartTouchListener()
     }
 
-    private fun startUpdatingRate() {
-        lifecycleScope.launch {
-            while (true) {
-                val rate = (50..99).random()
-                updateRate(rate)
-                delay(1000)
-            }
-        }
-    }
+//    private fun startUpdatingRate() {
+//        lifecycleScope.launch {
+//            while (true) {
+//                val rate = (50..99).random()
+//                updateRate(rate)
+//                delay(1000)
+//            }
+//        }
+//    }
 
     private fun updateRate(rate: Int) {
         val newEntry = Entry(lineDataSet.xMax+1, rate.toFloat())
