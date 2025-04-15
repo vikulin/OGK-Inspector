@@ -4,6 +4,8 @@
 OGK Inspector is the official Android companion app for the [OpenGammaKit](https://github.com/vikulin/OpenGammaKit) spectrometers, built to interface with supported hardware via USB serial (compatible with Android 7.0 and above). Designed for precision calibration and spectrometer diagnostics, it now features enhanced integration with the latest calibration code updates and a **comprehensive isotopes database** for improved calibration accuracy.
 
 ## Key Features
+- **Counter Mode**: Continuously tracks and increments metrics for real-time analysis
+- **Threshold Alerting**: Triggers an **audible sound alarm** whenever thresholds are breached, enabling prompt responses
 - **Real-time gamma spectrum visualization** with improved accuracy
 - **Optimized resolution (FWHM) calculation** reflecting calibration refinements
 - **Advanced troubleshooting terminal** for direct spectrometer command execution
