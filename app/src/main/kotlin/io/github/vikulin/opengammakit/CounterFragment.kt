@@ -23,6 +23,8 @@ import android.media.MediaPlayer
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.widget.ImageButton
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.lifecycleScope
 import com.github.mikephil.charting.components.AxisBase
 import com.github.mikephil.charting.components.Description
@@ -30,6 +32,7 @@ import com.github.mikephil.charting.components.YAxis
 import com.github.mikephil.charting.formatter.ValueFormatter
 import io.github.vikulin.opengammakit.model.OpenGammaKitCommands
 import io.github.vikulin.opengammakit.view.CounterThresholdDialogFragment
+import io.github.vikulin.opengammakit.view.ReconnectDeviceDialogFragment
 
 class CounterFragment : SerialConnectionFragment(),
     CounterThresholdDialogFragment.SaveThresholdDialogListener,
@@ -339,5 +342,9 @@ class CounterFragment : SerialConnectionFragment(),
 
     override fun onChoose() {
         chooseThreshold = true
+    }
+
+    override fun onReconnect() {
+        super.onReconnect(CounterFragment(), "counter")
     }
 }

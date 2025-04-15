@@ -874,4 +874,8 @@ class SpectrumFragment : SerialConnectionFragment(),
         // If no conflicting pairs are found, return true
         return true
     }
+
+    override fun onReconnect() {
+        super.onReconnect(SpectrumFragment(), "spectrum")
+    }
 }

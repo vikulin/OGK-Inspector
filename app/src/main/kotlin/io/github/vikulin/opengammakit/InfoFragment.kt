@@ -169,4 +169,7 @@ class InfoFragment() : SerialConnectionFragment() {
 
         return view
     }
+
+    override fun onReconnect() {
+    }
 }

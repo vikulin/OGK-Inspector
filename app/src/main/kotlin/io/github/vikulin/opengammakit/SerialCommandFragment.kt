@@ -27,4 +27,8 @@ class SerialCommandFragment: SerialConnectionFragment() {
     override fun status(str: String) {
 
     }
+
+    override fun onReconnect() {
+
+    }
 }

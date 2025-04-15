@@ -9,6 +9,7 @@ import android.view.*
 import android.widget.TextView
 import android.widget.Toast
 import android.widget.ToggleButton
+import androidx.fragment.app.Fragment
 import com.hoho.android.usbserial.driver.*
 import java.io.IOException
 import java.util.EnumSet
@@ -175,8 +176,12 @@ class TerminalFragment : SerialConnectionFragment() {
         }
     }
 
-    override fun stopCommunication() {
-        super.stopCommunication()
+    override fun onDisconnected() {
+        super.onDisconnected()
         listOf(rtsBtn, ctsBtn, dtrBtn, dsrBtn, cdBtn, riBtn).forEach { it.isChecked = false }
+    }
+
+    override fun onReconnect() {
+        super.onReconnect(TerminalFragment(), "terminal")
     }
 }

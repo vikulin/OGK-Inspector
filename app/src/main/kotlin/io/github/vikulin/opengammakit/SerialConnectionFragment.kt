@@ -6,16 +6,20 @@ import android.hardware.usb.*
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentManager
 import com.hoho.android.usbserial.driver.*
 import com.hoho.android.usbserial.util.SerialInputOutputManager
-import io.github.vikulin.opengammakit.BuildConfig
+import io.github.vikulin.opengammakit.view.ReconnectDeviceDialogFragment
 import java.io.IOException
 import java.util.EnumSet
 
-abstract class SerialConnectionFragment : Fragment(), SerialInputOutputManager.Listener {
+abstract class SerialConnectionFragment : Fragment(),
+    SerialInputOutputManager.Listener,
+    ReconnectDeviceDialogFragment.ReconnectDeviceDialogListener {
 
     private enum class UsbPermission { Unknown, Requested, Granted, Denied }
 
@@ -97,10 +101,14 @@ abstract class SerialConnectionFragment : Fragment(), SerialInputOutputManager.L
     abstract fun receive(bytes: ByteArray)
 
     override fun onRunError(e: Exception?) {
+        Log.d("SerialConnectionFragment", "onRunError")
         mainLooper.post {
             status("connection lost: ${e?.message}")
             disconnect()
         }
+        Log.d("SerialConnectionFragment", "onRunError")
+        val reconnectDeviceDialog = ReconnectDeviceDialogFragment.Companion.newInstance()
+        reconnectDeviceDialog.show(childFragmentManager, "reconnect_device_dialog_fragment")
     }
 
     private fun connect() {
@@ -242,8 +250,17 @@ abstract class SerialConnectionFragment : Fragment(), SerialInputOutputManager.L
 
     }
 
-    open fun stopCommunication(){
+    open fun onDisconnected() {
 
+    }
+
+    open fun onReconnect(fragment: Fragment, tag: String){
+        parentFragmentManager.popBackStack(null, FragmentManager.POP_BACK_STACK_INCLUSIVE)
+        fragment.arguments = arguments
+        parentFragmentManager.beginTransaction()
+            .replace(R.id.fragment, fragment, tag)
+            .addToBackStack(null)
+            .commit()
     }
 
     open fun getBundle(): Bundle {
@@ -289,7 +306,7 @@ abstract class SerialConnectionFragment : Fragment(), SerialInputOutputManager.L
 
         fun stop() {
             mainLooper.removeCallbacks(runnable)
-            SerialConnectionFragment@stopCommunication()
+            SerialConnectionFragment@onDisconnected()
         }
     }
 }
