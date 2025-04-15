@@ -44,7 +44,7 @@
         android:text="00:00:00"
         android:textColor="@color/colorPrimaryText"
         android:fontFamily="monospace"
-        android:textSize="16sp"
+        android:textSize="11sp"
         app:layout_constraintStart_toEndOf="@+id/counterSection"
         app:layout_constraintTop_toTopOf="@+id/rateLineChart" />
 
@@ -53,19 +53,20 @@
         android:id="@+id/rateLineChart"
         android:layout_width="0dp"
         android:layout_height="match_parent"
+        android:layout_marginEnd="40dp"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@+id/counterSection"
-        tools:layout_editor_absoluteY="16dp" />
+        app:layout_constraintStart_toEndOf="@+id/counterSection" />
 
     <ImageButton
         android:id="@+id/btnThreshold"
         android:layout_width="50dp"
         android:layout_height="50dp"
-        app:layout_constraintEnd_toEndOf="@+id/rateLineChart"
-        app:layout_constraintTop_toTopOf="@+id/rateLineChart"
-        app:srcCompat="@drawable/ic_threshold"
-        android:background="@android:color/transparent"
         android:layout_margin="50dp"
-        app:tint="@color/colorPrimaryText"/>
+        android:background="@android:color/transparent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="@+id/rateLineChart"
+        app:layout_constraintTop_toTopOf="parent"
+        app:srcCompat="@drawable/ic_threshold"
+        app:tint="@color/colorPrimaryText" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

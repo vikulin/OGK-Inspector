@@ -3,15 +3,14 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
-    android:padding="8dp">
+    android:padding="10dp">
 
     <!-- Key Text -->
     <TextView
         android:id="@+id/keyText"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:textStyle="bold"
+        android:layout_weight="0.7"
         android:textSize="12sp"
         android:textAppearance="@style/TextAppearance.AppCompat.Medium"/>
 
@@ -22,7 +21,6 @@
         android:layout_height="wrap_content"
         android:layout_weight="1"
         android:gravity="end"
-        android:padding="3dp"
         android:textSize="12sp"
         android:textAppearance="@style/TextAppearance.AppCompat.Medium"/>
 </LinearLayout>

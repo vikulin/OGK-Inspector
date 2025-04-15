@@ -32,7 +32,7 @@
         android:gravity="left"
         android:text="00:00:00"
         android:textColor="@color/colorPrimaryText"
-        android:textSize="16sp"
+        android:textSize="11sp"
         android:fontFamily="monospace"
         app:layout_constraintStart_toStartOf="@+id/rateLineChart"
         app:layout_constraintTop_toTopOf="@+id/rateLineChart" />
@@ -43,6 +43,7 @@
         android:id="@+id/rateLineChart"
         android:layout_width="match_parent"
         android:layout_height="0dp"
+        android:layout_marginBottom="40dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="1.0"
@@ -53,11 +54,12 @@
         android:id="@+id/btnThreshold"
         android:layout_width="50dp"
         android:layout_height="50dp"
+        android:layout_margin="50dp"
+        android:background="@android:color/transparent"
+        app:layout_constraintBottom_toBottomOf="@+id/rateLineChart"
         app:layout_constraintEnd_toEndOf="@+id/rateLineChart"
         app:layout_constraintTop_toTopOf="@+id/rateLineChart"
         app:srcCompat="@drawable/ic_threshold"
-        android:background="@android:color/transparent"
-        android:layout_margin="50dp"
-        app:tint="@color/colorPrimaryText"/>
+        app:tint="@color/colorPrimaryText" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
