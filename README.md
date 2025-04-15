@@ -7,6 +7,8 @@ OGK Inspector is the official Android companion app for the [OpenGammaKit](https
 - **Counter Mode**: Continuously tracks and increments metrics for real-time analysis
 - **Threshold Alerting**: Triggers an **audible sound alarm** whenever thresholds are breached, enabling prompt responses
 - **Real-time gamma spectrum visualization** with improved accuracy
+- **Spectrum Chart Screenshots**: Capture screenshots of spectrum charts and save them locally on the device for future reference
+- **Android Share Functionality**: Easily share spectrum chart screenshots directly via email, messaging apps, or other platforms, ensuring seamless collaboration and reporting
 - **Optimized resolution (FWHM) calculation** reflecting calibration refinements
 - **Advanced troubleshooting terminal** for direct spectrometer command execution
 - **Common isotopes database** for streamlined calibration and isotope identification
