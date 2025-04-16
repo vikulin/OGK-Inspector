@@ -170,12 +170,15 @@ class DevicesFragment : ListFragment() {
                 driver = usbCustomProber.probeDevice(device)
             }
             if (driver != null) {
+                val i = driver.device.interfaceCount
                 for (port in 0 until driver.ports.size) {
                     listItems.add(ListItem(device, port, driver))
                 }
-            } else {
-                listItems.add(ListItem(device, 0, null))
             }
+            // skip not connected ports in USB Hubs
+            //else {
+            //    listItems.add(ListItem(device, 0, null))
+            //}
         }
         listAdapter.notifyDataSetChanged()
     }
@@ -186,7 +189,7 @@ class DevicesFragment : ListFragment() {
                 UsbManager.ACTION_USB_DEVICE_ATTACHED -> {
                     val device: UsbDevice? = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE)
                     device?.let {
-                        Log.d("USB", "Device attached: ${it.deviceName}")
+                        Log.d("DeviceFragment", "Device attached: ${it.deviceName}")
                         refresh()
                     }
                 }

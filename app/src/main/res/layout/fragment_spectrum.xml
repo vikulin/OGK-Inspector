@@ -2,7 +2,6 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:flexbox="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
@@ -23,8 +22,8 @@
         android:layout_height="1dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintTop_toTopOf="@+id/spectrumChart" />
-    <!-- ImageButtons centered vertically with equal spacing -->
 
+    <!-- ImageButtons centered vertically with equal spacing -->
     <ImageButton
         android:id="@+id/btnCalibration"
         android:layout_width="wrap_content"
