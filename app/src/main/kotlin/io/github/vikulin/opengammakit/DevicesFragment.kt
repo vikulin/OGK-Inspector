@@ -46,7 +46,7 @@ class DevicesFragment : ListFragment() {
                 val item = listItems[position]
                 val view = convertView ?: layoutInflater.inflate(R.layout.device_list_item, parent, false)
                 val deviceLabel = view.findViewById<TextView>(R.id.deviceLabel)
-                val deviceId = view.findViewById<TextView>(R.id.deviceId)
+                val usbPort = view.findViewById<TextView>(R.id.usbPort)
                 val info = view.findViewById<ImageButton>(R.id.info)
                 val terminal = view.findViewById<ImageButton>(R.id.terminal)
                 val spectrometer = view.findViewById<ImageButton>(R.id.spectrometer)
@@ -59,7 +59,7 @@ class DevicesFragment : ListFragment() {
 
                 val vendor = item.device.vendorId
                 val product = item.device.productId
-                deviceId.text = item.device.deviceId.toString()
+                usbPort.text = (item.port+1).toString()
                 counter.setOnClickListener {
                     val args = Bundle().apply {
                         putInt("device", item.device.deviceId)
@@ -170,7 +170,6 @@ class DevicesFragment : ListFragment() {
                 driver = usbCustomProber.probeDevice(device)
             }
             if (driver != null) {
-                val i = driver.device.interfaceCount
                 for (port in 0 until driver.ports.size) {
                     listItems.add(ListItem(device, port, driver))
                 }

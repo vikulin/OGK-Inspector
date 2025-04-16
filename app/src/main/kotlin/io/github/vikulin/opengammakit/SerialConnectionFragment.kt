@@ -39,6 +39,7 @@ abstract class SerialConnectionFragment : Fragment(),
     private var usbSerialPort: UsbSerialPort? = null
     private var usbPermission = UsbPermission.Unknown
     internal var connected = false
+    internal var serialNumber: String? = null
 
     private val broadcastReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -171,6 +172,7 @@ abstract class SerialConnectionFragment : Fragment(),
             status("connected")
             connected = true
             controlLines.start()
+            serialNumber = device.serialNumber
             onConnectionSuccess()
         } catch (e: Exception) {
             status("connection failed: ${e.message}")

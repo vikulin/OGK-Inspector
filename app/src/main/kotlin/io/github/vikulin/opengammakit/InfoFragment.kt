@@ -123,6 +123,7 @@ class InfoFragment() : SerialConnectionFragment() {
                             intArrayOf(R.id.keyText, R.id.valueText)
                         )
                         listView.adapter = adapter
+                        deviceInfoList.add(mapOf("key" to "Serial Number", "value" to "$serialNumber"))
                         adapter.notifyDataSetChanged()
                         buffer.clear()
                         return
@@ -161,7 +162,6 @@ class InfoFragment() : SerialConnectionFragment() {
                 mapOf("key" to "Device Id", "value" to "$deviceId"),
                 mapOf("key" to "Port", "value" to "$portNum"),
                 mapOf("key" to "Baud", "value" to "$baudRate"),
-                mapOf("key" to "With IoManager", "value" to "$withIoManager")
             )
         )
 

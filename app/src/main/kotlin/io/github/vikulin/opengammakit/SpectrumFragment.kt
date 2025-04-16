@@ -156,6 +156,9 @@ class SpectrumFragment : SerialConnectionFragment(),
 
     override fun onConnectionSuccess() {
         super.onConnectionSuccess()
+        loadCalibrationData()
+        updateChartWithCombinedXAxis()
+        showCalibrationLimitLines()
         super.setDtr(true)
         val command = OpenGammaKitCommands().setOut("spectrum" + '\n').toByteArray()
         super.send(command)
@@ -694,11 +697,6 @@ class SpectrumFragment : SerialConnectionFragment(),
         sharedPreferences = context.getSharedPreferences("CalibrationPrefs", Context.MODE_PRIVATE)
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        loadCalibrationData() // Load calibration data when the fragment is created
-    }
-
     // Function to save calibration data
     private fun saveCalibrationData() {
         sharedPreferences.edit {
@@ -713,13 +711,13 @@ class SpectrumFragment : SerialConnectionFragment(),
                 )
             })
 
-            putString(calibrationPreferencesKey+deviceId, serializedData)
+            putString(calibrationPreferencesKey+serialNumber, serializedData)
         } // Commit changes asynchronously
     }
 
     // Function to load calibration data
     private fun loadCalibrationData() {
-        val serializedData = sharedPreferences.getString(calibrationPreferencesKey+deviceId, null) ?: return
+        val serializedData = sharedPreferences.getString(calibrationPreferencesKey+serialNumber, null) ?: return
 
         // Deserialize the JSON back into the calibration list using kotlinx.serialization
         val calibrationDataList: List<CalibrationData> = Json.decodeFromString(serializedData)

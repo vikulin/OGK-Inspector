@@ -17,7 +17,7 @@
         app:layout_constraintTop_toTopOf="parent" />
 
     <TextView
-        android:id="@+id/deviceId"
+        android:id="@+id/usbPort"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:text="1002"

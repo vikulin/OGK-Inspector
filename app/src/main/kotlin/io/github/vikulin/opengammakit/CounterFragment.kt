@@ -41,7 +41,7 @@ class CounterFragment : SerialConnectionFragment(),
     private lateinit var rateLineChart: LineChart
 
     private val PREF_NAME = "counter_preferences"
-    private val KEY_THRESHOLD = "threshold"
+    private val KEY_THRESHOLD = "threshold_"
     private var threshold: Int = 9999999 // Default value
     private var isBlinking = false
     private var alarmJob: Job? = null
@@ -53,6 +53,8 @@ class CounterFragment : SerialConnectionFragment(),
 
     override fun onConnectionSuccess() {
         super.onConnectionSuccess()
+        loadThreshold()
+        setCounterThreshold(threshold)
         super.setDtr(true)
         val command = OpenGammaKitCommands().setOut("events" + '\n').toByteArray()
         super.send(command)
@@ -66,18 +68,14 @@ class CounterFragment : SerialConnectionFragment(),
     private fun saveThreshold() {
         val sharedPreferences = requireContext().getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
         val editor = sharedPreferences.edit()
-        editor.putInt(KEY_THRESHOLD, threshold)
+        editor.putInt(KEY_THRESHOLD+serialNumber, threshold)
         editor.apply() // Asynchronously save the value
     }
 
     private fun loadThreshold() {
         val sharedPreferences = requireContext().getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
-        threshold = sharedPreferences.getInt(KEY_THRESHOLD, 9999999) // Default to 9999999 if not set
-    }
-
-    override fun onPause() {
-        super.onPause()
-        saveThreshold() // Persist the threshold value
+        threshold = sharedPreferences.getInt(KEY_THRESHOLD+serialNumber, 9999999) // Default to 9999999 if not set
+        System.out.println()
     }
 
     override fun receive(bytes: ByteArray) {
@@ -110,7 +108,6 @@ class CounterFragment : SerialConnectionFragment(),
         savedInstanceState: Bundle?
     ): View {
         val view = inflater.inflate(R.layout.fragment_counter, container, false)
-        loadThreshold() // Load persisted threshold value
 
         currentRateTextView = view.findViewById(R.id.currentRateTextView)
         btnThreshold = view.findViewById(R.id.btnThreshold)
@@ -141,8 +138,6 @@ class CounterFragment : SerialConnectionFragment(),
         savedInstanceState?.getInt("COUNTER_THRESHOLD")?.let {
             threshold = it
         } ?: run { }
-
-        setCounterThreshold(threshold)
 
         return view
     }
@@ -323,6 +318,11 @@ class CounterFragment : SerialConnectionFragment(),
         mediaPlayer?.stop()
         mediaPlayer?.release()
         mediaPlayer = null
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        saveThreshold()
     }
 
     override fun onDestroyView() {
