@@ -128,11 +128,18 @@ class SpectrumFragment : SerialConnectionFragment(),
 
         initChart(savedInstanceState)
 
+        initCalibration(savedInstanceState)
+
         setupChart()
 
         updateChartWithCombinedXAxis()
 
         showCalibrationLimitLines()
+
+        //this code corrects calibration and axis data after screen rotation
+        updateChartSpectrumData(spectrumDataSet.values.map {
+            it.y.toLong()
+        })
 
         btnCalibration.setOnClickListener {
             fwhm = false
@@ -150,6 +157,26 @@ class SpectrumFragment : SerialConnectionFragment(),
 
         btnShare.setOnClickListener {
             shareChartScreenshot(requireContext(), spectrumChart, view.findViewById(R.id.tableContainer))
+        }
+    }
+
+    private fun initCalibration(savedInstanceState: Bundle?) {
+        savedInstanceState?.getSerializable("CALIBRATION_DATA")?.let { data ->
+            val calibrationDataArray = data as Array<CalibrationData>
+            val calibrationDataList = calibrationDataArray.toList() // Convert back to List
+
+            // Update your UI or logic with the restored data
+            verticalCalibrationLineList = calibrationDataList.map { calibrationData ->
+                Pair(
+                    LimitLine(calibrationData.limitLineValue, calibrationData.limitLineLabel),
+                    Pair(calibrationData.channel, calibrationData.emissionSource)
+                )
+            }.toMutableList()
+
+            Log.d("Restore", "Calibration data restored: $calibrationDataList")
+
+            val v = spectrumDataSet.values
+            System.out.println()
         }
     }
 
@@ -202,6 +229,16 @@ class SpectrumFragment : SerialConnectionFragment(),
             floatArrayOf(entry.x, entry.y)
         }.toTypedArray()
         outState.putSerializable("GRAPH_ENTRIES", entriesArray)
+        // Convert the calibration data list to a List of CalibrationData instances
+        val calibrationDataList = verticalCalibrationLineList.map {
+            CalibrationData(
+                limitLineValue = it.first.limit,
+                limitLineLabel = it.first.label,
+                channel = it.second.first,
+                emissionSource = it.second.second
+            )
+        }.toTypedArray()
+        outState.putSerializable("CALIBRATION_DATA", calibrationDataList)
     }
 
     private fun setupChart() {
@@ -250,7 +287,7 @@ class SpectrumFragment : SerialConnectionFragment(),
             Entry(index.toFloat(), count.toFloat())
         }
 
-        spectrumDataSet?.let {
+        spectrumDataSet.let {
             it.values = entries
             spectrumChart.data.notifyDataChanged()
             spectrumChart.notifyDataSetChanged()
@@ -742,13 +779,17 @@ class SpectrumFragment : SerialConnectionFragment(),
 
     // Function to load calibration data
     private fun loadCalibrationData() {
+
+        // the calibration data has been already loaded from savedInstanceState
+        if(verticalCalibrationLineList.isNotEmpty()){
+            return
+        }
+
         val serializedData = sharedPreferences.getString(calibrationPreferencesKey+serialNumber, null) ?: return
 
         // Deserialize the JSON back into the calibration list using kotlinx.serialization
         val calibrationDataList: List<CalibrationData> = Json.decodeFromString(serializedData)
 
-        // Reconstruct the verticalCalibrationLineList
-        verticalCalibrationLineList.clear()
         calibrationDataList.forEach {
             val limitLine = LimitLine(it.limitLineValue, it.limitLineLabel)
             limitLine.apply {
@@ -777,7 +818,7 @@ class SpectrumFragment : SerialConnectionFragment(),
             }
             xAxis.addLimitLine(limitLine)
         }
-        spectrumChart.invalidate() // Refresh the chart
+        spectrumChart.invalidate()
     }
 
     private fun hideCalibrationLimitLines() {
@@ -821,9 +862,7 @@ class SpectrumFragment : SerialConnectionFragment(),
         if (calibrationPointIndex < 0) {
             // new calibration point creation
             addVerticalCalibrationLine(peakChannel, peakEnergy, isotope)
-            if (verticalCalibrationLineList.size > 1) {
-                updateChartWithCombinedXAxis()
-            }
+            updateChartWithCombinedXAxis()
         } else {
             // update an existing calibration point
             updateVerticalCalibrationLine(calibrationPointIndex, peakChannel, peakEnergy, isotope)
@@ -833,7 +872,7 @@ class SpectrumFragment : SerialConnectionFragment(),
     private fun isValidChannel(channel: Double): Boolean {
         // Replace with your actual valid channel range (example: 0 to 4096)
         val minChannel = 0.0
-        val maxChannel = spectrumDataSet!!.entryCount
+        val maxChannel = spectrumDataSet.entryCount
         return channel in minChannel..maxChannel.toDouble()
     }
 
