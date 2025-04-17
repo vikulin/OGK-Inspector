@@ -75,7 +75,6 @@ class CounterFragment : SerialConnectionFragment(),
     private fun loadThreshold() {
         val sharedPreferences = requireContext().getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
         threshold = sharedPreferences.getInt(KEY_THRESHOLD+serialNumber, 9999999) // Default to 9999999 if not set
-        System.out.println()
     }
 
     override fun receive(bytes: ByteArray) {
@@ -118,7 +117,6 @@ class CounterFragment : SerialConnectionFragment(),
             //set limit line for the threshold
             val counterThresholdDialog = CounterThresholdDialogFragment.Companion.newInstance(threshold)
             counterThresholdDialog.show(childFragmentManager, "counter_threshold_dialog_fragment")
-            System.out.println()
         }
 
         setupLineChart()

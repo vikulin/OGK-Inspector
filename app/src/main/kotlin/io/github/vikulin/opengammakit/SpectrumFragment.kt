@@ -61,7 +61,7 @@ class SpectrumFragment : SerialConnectionFragment(),
     private lateinit var btnFwhm: ImageButton
     private lateinit var btnScreenshot: ImageButton
     private lateinit var btnShare: ImageButton
-    private var spectrumDataSet: LineDataSet? = null
+    private lateinit var spectrumDataSet: LineDataSet
     private var pauseOffset: Long = 0
     private var verticalLimitLine: LimitLine? = null
     private var horizontalLimitLine: LimitLine? = null
@@ -126,8 +126,7 @@ class SpectrumFragment : SerialConnectionFragment(),
             }
         })
 
-
-        initChart()
+        initChart(savedInstanceState)
 
         setupChart()
 
@@ -169,21 +168,40 @@ class SpectrumFragment : SerialConnectionFragment(),
         // Add a message here
     }
 
-    private fun initChart(){
-        val parsed = Json.decodeFromString<GammaKitData>(zeroedData)
-        val spectrum = parsed.data.firstOrNull()?.resultData?.energySpectrum ?: return
+    private fun initChart(savedInstanceState: Bundle?) {
 
-        val entries = spectrum.spectrum.mapIndexed { index, count ->
-            Entry(index.toFloat(), count.toFloat())
+        // Restore graph data from savedInstanceState if available
+        val restoredEntries = savedInstanceState?.getSerializable("GRAPH_ENTRIES")?.let { data ->
+            val entriesArray = data as Array<FloatArray>
+            entriesArray.map { entryData ->
+                Entry(entryData[0], entryData[1]) // Create Entry objects
+            }
+        } ?: run {
+            // Load zeroed data if no saved state exists
+            val parsed = Json.decodeFromString<GammaKitData>(zeroedData)
+            val spectrum = parsed.data.firstOrNull()?.resultData?.energySpectrum ?: return@run emptyList()
+
+            spectrum.spectrum.mapIndexed { index, count ->
+                Entry(index.toFloat(), count.toFloat())
+            }
         }
 
-        spectrumDataSet = LineDataSet(entries, "Energy Spectrum").apply {
+        // Initialize the dataset with restored or zeroed entries
+        spectrumDataSet = LineDataSet(restoredEntries, "Energy Spectrum").apply {
             mode = LineDataSet.Mode.CUBIC_BEZIER
             lineWidth = 1.5f
             setDrawCircles(false)
             setDrawValues(false)
             color = resources.getColor(android.R.color.holo_blue_light, null)
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        val entriesArray = spectrumDataSet.values.map { entry ->
+            floatArrayOf(entry.x, entry.y)
+        }.toTypedArray()
+        outState.putSerializable("GRAPH_ENTRIES", entriesArray)
     }
 
     private fun setupChart() {
@@ -279,10 +297,17 @@ class SpectrumFragment : SerialConnectionFragment(),
         }
 
         // Transform the spectrum data to use energy values
-        val spectrum = Json.decodeFromString<GammaKitData>(zeroedData).data.firstOrNull()?.resultData?.energySpectrum ?: return
-        val energyEntries = spectrum.spectrum.mapIndexed { index, count ->
-            val energy = interpolateEnergy(index.toDouble())
-            Entry(energy.toFloat(), count.toFloat())
+        val energyEntries = if(spectrumDataSet.values.isEmpty()){
+            val spectrum = Json.decodeFromString<GammaKitData>(zeroedData).data.firstOrNull()?.resultData?.energySpectrum ?: return
+            spectrum.spectrum.mapIndexed { index, zero ->
+                val energy = interpolateEnergy(index.toDouble())
+                Entry(energy.toFloat(), zero.toFloat())
+            }
+        } else {
+            spectrumDataSet.values.mapIndexed { index, count ->
+                val energy = interpolateEnergy(index.toDouble())
+                Entry(energy.toFloat(), count.y)
+            }
         }
 
         spectrumDataSet = LineDataSet(energyEntries, "Energy Spectrum").apply {
@@ -514,7 +539,7 @@ class SpectrumFragment : SerialConnectionFragment(),
             enableDashedLine(3f, 3f, 0f)
             labelPosition = LimitLine.LimitLabelPosition.RIGHT_BOTTOM
             yOffset = 40.0f
-            
+
         }
         xAxis.addLimitLine(verticalCalibrationLine)
         val emissionSource = if(peakIsotope != null){
@@ -729,7 +754,7 @@ class SpectrumFragment : SerialConnectionFragment(),
             limitLine.apply {
                 labelPosition = LimitLine.LimitLabelPosition.RIGHT_BOTTOM
                 yOffset = 40.0f
-                
+
             }
             val emissionSource = it.emissionSource
             verticalCalibrationLineList.add(Pair(limitLine, Pair(it.channel, emissionSource)))
@@ -748,7 +773,7 @@ class SpectrumFragment : SerialConnectionFragment(),
                 enableDashedLine(3f, 3f, 0f)
                 labelPosition = LimitLine.LimitLabelPosition.RIGHT_BOTTOM
                 yOffset = 40.0f
-                
+
             }
             xAxis.addLimitLine(limitLine)
         }
