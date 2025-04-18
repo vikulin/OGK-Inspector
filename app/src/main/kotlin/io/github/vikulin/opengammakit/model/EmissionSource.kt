@@ -1,6 +1,6 @@
 package io.github.vikulin.opengammakit.model
 
-import kotlinx.serialization.Serializable
+import java.io.Serializable
 
-@Serializable
-data class EmissionSource(val name: String, val energy: Double)
+@kotlinx.serialization.Serializable
+data class EmissionSource(val name: String, val energy: Double): Serializable

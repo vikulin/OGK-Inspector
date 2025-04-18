@@ -32,7 +32,6 @@ import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.highlight.Highlight
 import kotlinx.serialization.json.Json
-import io.github.vikulin.opengammakit.model.GammaKitData
 import io.github.vikulin.opengammakit.model.OpenGammaKitCommands
 import io.github.vikulin.opengammakit.view.ResolutionMarkerView
 import io.github.vikulin.opengammakit.view.CalibrationDialogFragment
@@ -45,8 +44,12 @@ import io.github.vikulin.opengammakit.model.EmissionSource
 import io.github.vikulin.opengammakit.model.Isotope
 import java.io.OutputStream
 import androidx.core.content.edit
+import androidx.lifecycle.lifecycleScope
+import io.github.vikulin.opengammakit.model.OpenGammaKitData
 import io.github.vikulin.opengammakit.view.CalibrationUpdateOrRemoveDialogFragment
 import io.github.vikulin.opengammakit.view.ErrorDialogFragment
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.text.iterator
 
 class SpectrumFragment : SerialConnectionFragment(),
@@ -54,20 +57,20 @@ class SpectrumFragment : SerialConnectionFragment(),
     CalibrationDialogFragment.CalibrationDialogListener {
 
     private lateinit var spectrumChart: LineChart
-    private lateinit var deviceValue: TextView
+    private lateinit var deviceName: TextView
     private lateinit var pulseCountValue: TextView
     private lateinit var measureTimer: Chronometer
     private lateinit var btnCalibration: ImageButton
     private lateinit var btnFwhm: ImageButton
     private lateinit var btnScreenshot: ImageButton
     private lateinit var btnShare: ImageButton
+    private lateinit var btnLive: ImageButton
+    private lateinit var btnSchedule: ImageButton
     private lateinit var spectrumDataSet: LineDataSet
     private var pauseOffset: Long = 0
     private var verticalLimitLine: LimitLine? = null
     private var horizontalLimitLine: LimitLine? = null
     private lateinit var gestureDetector: GestureDetector
-    private var fwhm = false
-    private var calibration = false
     private var verticalCalibrationLineList = mutableListOf<Pair<LimitLine, Pair<Double, EmissionSource>>>()
     private val calibrationPreferencesKey = "calibration_data_"
     private lateinit var sharedPreferences: SharedPreferences
@@ -87,40 +90,50 @@ class SpectrumFragment : SerialConnectionFragment(),
         super.onViewCreated(view, savedInstanceState)
 
         spectrumChart = view.findViewById(R.id.spectrumChart)
-        deviceValue = view.findViewById(R.id.deviceValue)
+        deviceName = view.findViewById(R.id.deviceName)
         pulseCountValue = view.findViewById(R.id.pulseCountValue)
         measureTimer = view.findViewById(R.id.measureTimer)
         btnCalibration = view.findViewById(R.id.btnCalibration)
         btnFwhm = view.findViewById(R.id.btnFwhm)
         btnScreenshot = view.findViewById(R.id.btnScreenshot)
         btnShare = view.findViewById(R.id.btnShare)
+        btnLive = view.findViewById(R.id.btnLive)
+        btnSchedule = view.findViewById(R.id.btnSchedule)
 
         gestureDetector = GestureDetector(requireContext(), object : GestureDetector.SimpleOnGestureListener() {
             override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
-                if(calibration) {
-                    spectrumChart.marker = null
-                    val closestEntry = getValuesByTouchPoint(e.x)
-                    if (closestEntry != null) {
-                        val pickX = closestEntry.x
-                        // Check if peakChannel already exists in the list
-                        val existingPair = verticalCalibrationLineList.find { abs(it.second.first - pickX) < 20 }
-                        if(existingPair != null){
-                            val index = verticalCalibrationLineList.indexOf(existingPair)
-                            //update or remove
-                            val calibrationDialogFragment = CalibrationUpdateOrRemoveDialogFragment.Companion.newInstance(index, existingPair)
-                            calibrationDialogFragment.show(childFragmentManager, "calibration_dialog_remove_or_update")
-                        } else {
-                            val limitLine = LimitLine(e.x, "")
-                            val emissionSource = EmissionSource("", 0.0)
-                            val calibrationPoint = Pair(limitLine, Pair(pickX.toDouble(), emissionSource))
-                            showCalibrationDialog(verticalCalibrationLineList.indexOf(calibrationPoint), calibrationPoint)
+                when(measureMode) {
+                    SpectrumMeasureMode.Live -> {
+                        // UI actions are blocked while spectrum measurements
+                    }
+                    SpectrumMeasureMode.Scheduled -> {
+                        // UI actions are blocked while spectrum measurements
+                    }
+                    SpectrumMeasureMode.Fwhm -> {
+                        val marker = ResolutionMarkerView(requireContext(), R.layout.marker_view)
+                        spectrumChart.marker = marker
+                        showPeakResolution(e.x)
+                    }
+                    SpectrumMeasureMode.Calibration -> {
+                        spectrumChart.marker = null
+                        val closestEntry = getValuesByTouchPoint(e.x)
+                        if (closestEntry != null) {
+                            val pickX = closestEntry.x
+                            // Check if peakChannel already exists in the list
+                            val existingPair = verticalCalibrationLineList.find { abs(it.second.first - pickX) < 20 }
+                            if(existingPair != null){
+                                val index = verticalCalibrationLineList.indexOf(existingPair)
+                                //update or remove
+                                val calibrationDialogFragment = CalibrationUpdateOrRemoveDialogFragment.Companion.newInstance(index, existingPair)
+                                calibrationDialogFragment.show(childFragmentManager, "calibration_dialog_remove_or_update")
+                            } else {
+                                val limitLine = LimitLine(e.x, "")
+                                val emissionSource = EmissionSource("", 0.0)
+                                val calibrationPoint = Pair(limitLine, Pair(pickX.toDouble(), emissionSource))
+                                showCalibrationDialog(verticalCalibrationLineList.indexOf(calibrationPoint), calibrationPoint)
+                            }
                         }
                     }
-                }
-                if(fwhm) {
-                    val marker = ResolutionMarkerView(requireContext(), R.layout.marker_view)
-                    spectrumChart.marker = marker
-                    showPeakResolution(e.x)
                 }
                 return true
             }
@@ -136,19 +149,52 @@ class SpectrumFragment : SerialConnectionFragment(),
 
         showCalibrationLimitLines()
 
-        //this code corrects calibration and axis data after screen rotation
-        updateChartSpectrumData(spectrumDataSet.values.map {
-            it.y.toLong()
-        })
-
         btnCalibration.setOnClickListener {
-            fwhm = false
-            calibration = true
+            measureMode = SpectrumMeasureMode.Calibration
+            measureTimer.stop()
+            val spectrumCommand = OpenGammaKitCommands().setOut("off").toByteArray()
+            super.send(spectrumCommand)
         }
 
         btnFwhm.setOnClickListener {
-            fwhm = true
-            calibration = false
+            measureMode = SpectrumMeasureMode.Fwhm
+            measureTimer.stop()
+            val spectrumCommand = OpenGammaKitCommands().setOut("off").toByteArray()
+            super.send(spectrumCommand)
+        }
+
+        btnLive.setOnClickListener {
+            measureMode = SpectrumMeasureMode.Live
+            //rest timer
+            measureTimer.start()
+            val spectrumCommand = OpenGammaKitCommands().setOut("spectrum").toByteArray()
+            super.send(spectrumCommand)
+        }
+
+        btnSchedule.setOnClickListener {
+            // Scheduled mode starts with Live mode for realtime spectrum updates
+            // The code switches to Scheduled mode once the measurement time is over
+            measureMode = SpectrumMeasureMode.Live
+            //rest timer
+            measureTimer.start()
+            val resetCommand = OpenGammaKitCommands().resetSpectrum().toByteArray()
+            super.send(resetCommand)
+            val spectrumCommand = OpenGammaKitCommands().setOut("spectrum").toByteArray()
+            super.send(spectrumCommand)
+            val recordTime = 10
+            val command = OpenGammaKitCommands().recordStart(recordTime, "test").toByteArray()
+            super.send(command)
+            lifecycleScope.launch {
+                delay(recordTime*1000L)
+                val spectrumCommand = OpenGammaKitCommands().setOut("off").toByteArray()
+                super.send(spectrumCommand)
+                // Code to run after one minute
+                measureMode = SpectrumMeasureMode.Scheduled
+                measureTimer.stop()
+                // Send code to read resulting spectrum
+                val command = OpenGammaKitCommands().readSpectrum().toByteArray()
+                super.send(command)
+            }
         }
 
         btnScreenshot.setOnClickListener {
@@ -174,9 +220,6 @@ class SpectrumFragment : SerialConnectionFragment(),
             }.toMutableList()
 
             Log.d("Restore", "Calibration data restored: $calibrationDataList")
-
-            val v = spectrumDataSet.values
-            System.out.println()
         }
     }
 
@@ -186,7 +229,7 @@ class SpectrumFragment : SerialConnectionFragment(),
         updateChartWithCombinedXAxis()
         showCalibrationLimitLines()
         super.setDtr(true)
-        val command = OpenGammaKitCommands().setOut("spectrum" + '\n').toByteArray()
+        val command = OpenGammaKitCommands().setOut("spectrum").toByteArray()
         super.send(command)
     }
 
@@ -205,7 +248,7 @@ class SpectrumFragment : SerialConnectionFragment(),
             }
         } ?: run {
             // Load zeroed data if no saved state exists
-            val parsed = Json.decodeFromString<GammaKitData>(zeroedData)
+            val parsed = Json.decodeFromString<OpenGammaKitData>(zeroedData)
             val spectrum = parsed.data.firstOrNull()?.resultData?.energySpectrum ?: return@run emptyList()
 
             spectrum.spectrum.mapIndexed { index, count ->
@@ -335,7 +378,7 @@ class SpectrumFragment : SerialConnectionFragment(),
 
         // Transform the spectrum data to use energy values
         val energyEntries = if(spectrumDataSet.values.isEmpty()){
-            val spectrum = Json.decodeFromString<GammaKitData>(zeroedData).data.firstOrNull()?.resultData?.energySpectrum ?: return
+            val spectrum = Json.decodeFromString<OpenGammaKitData>(zeroedData).data.firstOrNull()?.resultData?.energySpectrum ?: return
             spectrum.spectrum.mapIndexed { index, zero ->
                 val energy = interpolateEnergy(index.toDouble())
                 Entry(energy.toFloat(), zero.toFloat())
@@ -389,10 +432,18 @@ class SpectrumFragment : SerialConnectionFragment(),
             legend.textColor = primaryColor
             invalidate() // Refresh the chart to apply changes
         }
+        //this code corrects calibration and axis data after screen rotation
+        updateChartSpectrumData(spectrumDataSet.values.map {
+            it.y.toLong()
+        })
     }
 
     private fun updateCounts(counts: Long){
         pulseCountValue.text = counts.toString()
+    }
+
+    private fun updateDeviceName(deviceName: String){
+        this@SpectrumFragment.deviceName.text = deviceName
     }
 
     override fun read() {
@@ -405,52 +456,113 @@ class SpectrumFragment : SerialConnectionFragment(),
 
     private val buffer = StringBuilder()
     private var openBraces = 0
+    private var isUsbSerialRecording = false
+    private var measureMode = SpectrumMeasureMode.Live
+
+    enum class SpectrumMeasureMode {
+        Live, Scheduled, Fwhm, Calibration
+    }
+
+//    override fun receive(bytes: ByteArray) {
+//        if (bytes.isNotEmpty()) {
+//            val inputString = bytes.toString(Charsets.UTF_8)
+//            Log.d("Test", ": $inputString")
+//        }
+//    }
 
     override fun receive(bytes: ByteArray) {
-        //Log.d("Test","received ${bytes.size}")
         if (bytes.isNotEmpty()) {
             val inputString = bytes.toString(Charsets.UTF_8)
-            //Log.d("Test","received ${bytes.toString(Charsets.UTF_8)}")
-            val EOF = '\uFFFF'
+            Log.d("Test", ": $inputString")
+            val EOF = '\u0000'
             for (char in inputString) {
-                when (char) {
-                    '[' -> {
-                        openBraces++
-                        buffer.append(char)
-                    }
-                    ']' -> {
-                        openBraces--
-                        buffer.append(char)
-                    }
-                    EOF -> {}
-                    '\r' -> {}
-                    '\n' -> {}
-                    else -> {
-                        buffer.append(char)
-                    }
-                }
-
-                if (openBraces == 0 && buffer.isNotEmpty()) {
-                    try {
-                        val json = Json {
-                            allowTrailingComma = true // Enables trailing commas in JSON parsing
+                when (measureMode) {
+                    SpectrumMeasureMode.Live -> {
+                        when (char) {
+                            '[' -> {
+                                openBraces++
+                                buffer.append(char)
+                            }
+                            ']' -> {
+                                openBraces--
+                                buffer.append(char)
+                            }
+                            EOF, '\r', '\n' -> {} // Ignore these
+                            else -> {
+                                buffer.append(char)
+                            }
                         }
-                        val parsed = json.decodeFromString<List<Long>>(buffer.toString())
-                        val counts = parsed.fold(0L) { acc, num -> acc + num }
-                        Log.d("Test", "List size: ${parsed.size}, counts: $counts")
-                        buffer.clear()
-                        updateChartSpectrumData(parsed)
-                        updateCounts(counts)
-                    } catch (e: Exception) {
-                        Log.e("Test", "Failed to parse JSON: ${e.message}")
-                        Log.d("Test",buffer.toString())
-                        buffer.clear() // Discard malformed or incomplete JSON
+                        if (openBraces == 0 && buffer.isNotEmpty()) {
+                            try {
+                                val json = Json {
+                                    allowTrailingComma = true
+                                }
+                                val spectrum =
+                                    json.decodeFromString<List<Long>>(buffer.toString())
+                                val counts = spectrum.fold(0L) { acc, num -> acc + num }
+                                Log.d(
+                                    "Test",
+                                    "Spectrum size: ${spectrum.size}, counts: $counts"
+                                )
+                                updateChartSpectrumData(spectrum)
+                                updateCounts(counts)
+                            } catch (e: Exception) {
+                                Log.e("Test", "Failed to parse data: ${e.message}")
+                                Log.d("Test", buffer.toString())
+                            } finally {
+                                buffer.clear()
+                            }
+                        }
+                        if (openBraces > 1 || openBraces < 0) {
+                            Log.e("Test", "openBraces issue: $buffer")
+                            buffer.clear() // Discard malformed or incomplete data
+                            openBraces = 0
+                        }
                     }
-                }
-                if(openBraces>1 || openBraces<0){
-                    Log.e("Test", "openBraces issue: $buffer")
-                    buffer.clear() // Discard malformed or incomplete JSON
-                    openBraces = 0
+
+                    SpectrumMeasureMode.Fwhm -> {}
+                    SpectrumMeasureMode.Calibration -> {}
+                    SpectrumMeasureMode.Scheduled -> {
+                        when (char) {
+                            '{', -> {
+                                // start input recording into a buffer
+                                isUsbSerialRecording = true
+                                buffer.append(char)
+                            }
+                            '\r', '\n' -> {} // Ignore these
+                            EOF -> {
+                                try {
+                                    val json = Json {
+                                        allowTrailingComma = true
+                                    }
+                                    val openGammaKitData =
+                                        json.decodeFromString<OpenGammaKitData>(buffer.toString())
+                                    Log.d(
+                                        "Test",
+                                        "Parsed scheduled data spectrum size: ${openGammaKitData.data.size}"
+                                    )
+                                    // Process scheduled data here
+                                    val counts =
+                                        openGammaKitData.data[0].resultData.energySpectrum.validPulseCount
+                                    val spectrum =
+                                        openGammaKitData.data[0].resultData.energySpectrum.spectrum
+                                    updateChartSpectrumData(spectrum)
+                                    updateCounts(counts)
+                                    updateDeviceName(openGammaKitData.data[0].deviceData.deviceName)
+                                } catch (e: Exception) {
+                                    Log.e("Test", "Failed to parse data: ${e.message}")
+                                    Log.d("Test", buffer.toString())
+                                } finally {
+                                    buffer.clear()
+                                    isUsbSerialRecording = false
+                                }
+                            } else -> {
+                                if(isUsbSerialRecording) {
+                                    buffer.append(char)
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

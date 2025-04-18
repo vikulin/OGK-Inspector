@@ -44,8 +44,8 @@ class InfoFragment() : SerialConnectionFragment() {
     override fun onConnectionSuccess() {
         super.onConnectionSuccess()
         super.setDtr(true)
-        super.send((OpenGammaKitCommands().setOut("off")+'\n').toByteArray())
-        super.send((OpenGammaKitCommands().readInfo()+'\n').toByteArray())
+        super.send((OpenGammaKitCommands().setOut("off")).toByteArray())
+        super.send((OpenGammaKitCommands().readInfo()).toByteArray())
     }
 
 

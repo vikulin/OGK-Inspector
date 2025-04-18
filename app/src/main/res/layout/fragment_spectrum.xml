@@ -23,54 +23,78 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintTop_toTopOf="@+id/spectrumChart" />
 
-    <!-- ImageButtons centered vertically with equal spacing -->
-    <ImageButton
-        android:id="@+id/btnCalibration"
+    <ScrollView
+        android:id="@+id/imageButtonsScroll"
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_margin="24dp"
-        android:background="@android:color/transparent"
-        app:layout_constraintBottom_toTopOf="@+id/btnFwhm"
+        android:layout_height="322dp"
+        android:fillViewport="true"
+        app:layout_constraintBottom_toBottomOf="@+id/view"
         app:layout_constraintEnd_toEndOf="parent"
-        app:tint="@color/colorPrimaryText"
-        flexbox:srcCompat="@drawable/ic_calibration" />
+        app:layout_constraintHeight_max="0dp"
+        app:layout_constraintTop_toTopOf="@+id/view">
 
-    <ImageButton
-        android:id="@+id/btnFwhm"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="12dp"
-        android:background="@android:color/transparent"
-        app:layout_constraintBottom_toTopOf="@+id/view"
-        app:layout_constraintEnd_toEndOf="@+id/btnCalibration"
-        app:layout_constraintStart_toStartOf="@+id/btnCalibration"
-        app:tint="@color/colorPrimaryText"
-        flexbox:srcCompat="@drawable/ic_fwhm" />
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:orientation="vertical">
 
-    <ImageButton
-        android:id="@+id/btnScreenshot"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:background="@android:color/transparent"
-        app:layout_constraintEnd_toEndOf="@+id/btnFwhm"
-        app:layout_constraintStart_toStartOf="@+id/btnFwhm"
-        app:layout_constraintTop_toBottomOf="@+id/view"
-        app:tint="@color/colorPrimaryText"
-        flexbox:srcCompat="@drawable/ic_screenshot" />
+            <ImageButton
+                android:id="@+id/btnCalibration"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_margin="24dp"
+                android:background="@android:color/transparent"
+                app:tint="@color/colorPrimaryText"
+                flexbox:srcCompat="@drawable/ic_calibration" />
 
-    <ImageButton
-        android:id="@+id/btnShare"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
-        android:background="@android:color/transparent"
-        app:layout_constraintEnd_toEndOf="@+id/btnScreenshot"
-        app:layout_constraintStart_toStartOf="@+id/btnScreenshot"
-        app:layout_constraintTop_toBottomOf="@+id/btnScreenshot"
-        app:tint="@color/colorPrimaryText"
-        flexbox:srcCompat="@drawable/ic_share" />
+            <ImageButton
+                android:id="@+id/btnFwhm"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@android:color/transparent"
+                app:tint="@color/colorPrimaryText"
+                flexbox:srcCompat="@drawable/ic_fwhm" />
 
+            <ImageButton
+                android:id="@+id/btnLive"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:background="@android:color/transparent"
+                app:tint="@color/colorPrimaryText"
+                flexbox:srcCompat="@drawable/ic_live" />
+
+            <ImageButton
+                android:id="@+id/btnSchedule"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:background="@android:color/transparent"
+                app:tint="@color/colorPrimaryText"
+                flexbox:srcCompat="@drawable/ic_schedule" />
+
+            <ImageButton
+                android:id="@+id/btnScreenshot"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:background="@android:color/transparent"
+                app:tint="@color/colorPrimaryText"
+                flexbox:srcCompat="@drawable/ic_screenshot" />
+
+            <ImageButton
+                android:id="@+id/btnShare"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:background="@android:color/transparent"
+                app:tint="@color/colorPrimaryText"
+                flexbox:srcCompat="@drawable/ic_share" />
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- Flexbox layout for table info -->
     <com.google.android.flexbox.FlexboxLayout
         android:id="@+id/tableContainer"
         android:layout_width="0dp"
@@ -87,7 +111,7 @@
 
         <!-- Device -->
         <TextView
-            android:id="@+id/deviceValue"
+            android:id="@+id/deviceName"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textColor="@color/colorPrimaryText"
@@ -96,7 +120,7 @@
             android:fontFamily="monospace"
             android:layout_marginEnd="16dp" />
 
-        <!-- Counts & Pulse Count in the same pair -->
+        <!-- Counts & Pulse Count -->
         <TextView
             android:text="Counts"
             android:textSize="11sp"
@@ -105,6 +129,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginEnd="10dp" />
+
         <TextView
             android:id="@+id/pulseCountValue"
             android:layout_width="wrap_content"
@@ -132,7 +157,6 @@
             android:textColor="@color/colorPrimaryText"
             android:textSize="11sp"
             android:fontFamily="monospace"/>
-
     </com.google.android.flexbox.FlexboxLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

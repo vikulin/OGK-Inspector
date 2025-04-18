@@ -1,12 +1,11 @@
 package io.github.vikulin.opengammakit.model
 
-import kotlinx.serialization.Serializable
+import java.io.Serializable
 
-// Data class to serialize calibration data
-@Serializable
+@kotlinx.serialization.Serializable
 data class CalibrationData(
-        val limitLineValue: Float,
-        val limitLineLabel: String,
-        val channel: Double,
-        val emissionSource: EmissionSource
-    )
+    val limitLineValue: Float,
+    val limitLineLabel: String,
+    val channel: Double,
+    val emissionSource: EmissionSource
+) : Serializable

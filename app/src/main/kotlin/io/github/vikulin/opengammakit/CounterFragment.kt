@@ -56,7 +56,7 @@ class CounterFragment : SerialConnectionFragment(),
         loadThreshold()
         setCounterThreshold(threshold)
         super.setDtr(true)
-        val command = OpenGammaKitCommands().setOut("events" + '\n').toByteArray()
+        val command = OpenGammaKitCommands().setOut("events").toByteArray()
         super.send(command)
     }
 

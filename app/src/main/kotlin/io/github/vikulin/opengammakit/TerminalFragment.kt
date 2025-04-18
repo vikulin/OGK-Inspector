@@ -9,7 +9,6 @@ import android.view.*
 import android.widget.TextView
 import android.widget.Toast
 import android.widget.ToggleButton
-import androidx.fragment.app.Fragment
 import com.hoho.android.usbserial.driver.*
 import java.io.IOException
 import java.util.EnumSet

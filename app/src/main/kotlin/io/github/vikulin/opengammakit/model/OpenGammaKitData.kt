@@ -3,7 +3,7 @@ package io.github.vikulin.opengammakit.model
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class GammaKitData(
+data class OpenGammaKitData(
     val schemaVersion: String,
     val data: List<GammaKitEntry>
 )
