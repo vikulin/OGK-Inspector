@@ -60,7 +60,7 @@ class SpectrumFragment : SerialConnectionFragment(),
     CalibrationDialogFragment.CalibrationDialogListener {
 
     private lateinit var spectrumChart: LineChart
-    private lateinit var deviceName: TextView
+    private lateinit var channelsValue: TextView
     private lateinit var pulseCountValue: TextView
     private lateinit var measureTimer: Chronometer
     private lateinit var btnCalibration: ImageButton
@@ -94,7 +94,7 @@ class SpectrumFragment : SerialConnectionFragment(),
         super.onViewCreated(view, savedInstanceState)
 
         spectrumChart = view.findViewById(R.id.spectrumChart)
-        deviceName = view.findViewById(R.id.deviceName)
+        channelsValue = view.findViewById(R.id.channels)
         pulseCountValue = view.findViewById(R.id.pulseCountValue)
         measureTimer = view.findViewById(R.id.measureTimer)
         btnCalibration = view.findViewById(R.id.btnCalibration)
@@ -140,7 +140,7 @@ class SpectrumFragment : SerialConnectionFragment(),
                         }
                     }
 
-                    SpectrumMeasureMode.Idle -> {}
+                    SpectrumMeasureMode.ReadSpectrum -> {}
                 }
                 return true
             }
@@ -205,7 +205,7 @@ class SpectrumFragment : SerialConnectionFragment(),
                 val spectrumOffCommand = OpenGammaKitCommands().setOut("off").toByteArray()
                 super.send(spectrumOffCommand)
 
-                measureMode = SpectrumMeasureMode.Idle
+                measureMode = SpectrumMeasureMode.ReadSpectrum
                 measureTimer.stop() // Stop the Chronometer
 
                 measureTimer.base = SystemClock.elapsedRealtime() - (recordTime * 1000L)
@@ -331,6 +331,8 @@ class SpectrumFragment : SerialConnectionFragment(),
         if(measureMode == SpectrumMeasureMode.Scheduled){
             measureTimer.start() // Resume the timer
         }
+
+        updateChannels(spectrumDataSet.entryCount)
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -516,8 +518,8 @@ class SpectrumFragment : SerialConnectionFragment(),
         pulseCountValue.text = counts.toString()
     }
 
-    private fun updateDeviceName(deviceName: String){
-        this@SpectrumFragment.deviceName.text = deviceName
+    private fun updateChannels(channels: Int){
+        this@SpectrumFragment.channelsValue.text = channels.toString()
     }
 
     override fun read() {
@@ -534,7 +536,7 @@ class SpectrumFragment : SerialConnectionFragment(),
     private var measureMode = SpectrumMeasureMode.Live
 
     enum class SpectrumMeasureMode {
-        Live, Scheduled, Fwhm, Calibration, Idle
+        Live, Scheduled, Fwhm, Calibration, ReadSpectrum
     }
 
 //    override fun receive(bytes: ByteArray) {
@@ -580,6 +582,7 @@ class SpectrumFragment : SerialConnectionFragment(),
                                 )
                                 updateChartSpectrumData(spectrum)
                                 updateCounts(counts)
+                                updateChannels(spectrum.size)
                             } catch (e: Exception) {
                                 Log.e("Test", "Failed to parse data: ${e.message}")
                                 Log.d("Test", buffer.toString())
@@ -596,7 +599,7 @@ class SpectrumFragment : SerialConnectionFragment(),
 
                     SpectrumMeasureMode.Fwhm -> {}
                     SpectrumMeasureMode.Calibration -> {}
-                    SpectrumMeasureMode.Idle -> {
+                    SpectrumMeasureMode.ReadSpectrum -> {
                         when (char) {
                             '{', -> {
                                 // start input recording into a buffer
@@ -622,7 +625,7 @@ class SpectrumFragment : SerialConnectionFragment(),
                                         openGammaKitData.data[0].resultData.energySpectrum.spectrum
                                     updateChartSpectrumData(spectrum)
                                     updateCounts(counts)
-                                    updateDeviceName(openGammaKitData.data[0].deviceData.deviceName)
+                                    updateChannels(openGammaKitData.data[0].resultData.energySpectrum.numberOfChannels)
                                 } catch (e: Exception) {
                                     Log.e("Test", "Failed to parse data: ${e.message}")
                                     Log.d("Test", buffer.toString())
@@ -637,8 +640,6 @@ class SpectrumFragment : SerialConnectionFragment(),
                             }
                         }
                     }
-
-                    SpectrumMeasureMode.Idle -> {}
                 }
             }
         }

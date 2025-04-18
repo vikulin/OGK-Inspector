@@ -1,14 +1,12 @@
 package io.github.vikulin.opengammakit
 
 import android.os.Bundle
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ListView
 import io.github.vikulin.opengammakit.adapter.DeviceInfoAdapter
 import io.github.vikulin.opengammakit.model.OpenGammaKitCommands
-import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
