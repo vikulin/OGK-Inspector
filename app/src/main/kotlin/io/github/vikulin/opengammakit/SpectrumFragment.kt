@@ -1129,4 +1129,9 @@ class SpectrumFragment : SerialConnectionFragment(),
     override fun onReconnect() {
         super.onReconnect(SpectrumFragment(), "spectrum")
     }
+
+    override fun onRunError(e: Exception?) {
+        super.onRunError(e)
+        measureTimer.stop()
+    }
 }
