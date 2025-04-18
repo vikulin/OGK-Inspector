@@ -50,14 +50,17 @@ import androidx.lifecycle.lifecycleScope
 import io.github.vikulin.opengammakit.model.OpenGammaKitData
 import io.github.vikulin.opengammakit.view.CalibrationUpdateOrRemoveDialogFragment
 import io.github.vikulin.opengammakit.view.ClockProgressView
+import io.github.vikulin.opengammakit.view.CounterThresholdDialogFragment
 import io.github.vikulin.opengammakit.view.ErrorDialogFragment
+import io.github.vikulin.opengammakit.view.SpectrumRecordingTimeDialogFragment
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.text.iterator
 
 class SpectrumFragment : SerialConnectionFragment(),
     CalibrationUpdateOrRemoveDialogFragment.CalibrationDialogListener,
-    CalibrationDialogFragment.CalibrationDialogListener {
+    CalibrationDialogFragment.CalibrationDialogListener,
+    SpectrumRecordingTimeDialogFragment.ChooseSpectrumRecordingTimeDialogListener{
 
     private lateinit var spectrumChart: LineChart
     private lateinit var channelsValue: TextView
@@ -182,40 +185,8 @@ class SpectrumFragment : SerialConnectionFragment(),
         }
 
         btnSchedule.setOnClickListener {
-            measureMode = SpectrumMeasureMode.Scheduled
-            // **Reset & Start Chronometer**
-            measureTimer.base = SystemClock.elapsedRealtime() // Reset timer initially
-            measureTimer.start()
-
-            val resetCommand = OpenGammaKitCommands().resetSpectrum().toByteArray()
-            super.send(resetCommand)
-            val spectrumCommand = OpenGammaKitCommands().setOut("spectrum").toByteArray()
-            super.send(spectrumCommand)
-
-            val recordTime = 10 // Take duration dynamically
-            val command = OpenGammaKitCommands().recordStart(recordTime, "test").toByteArray()
-            super.send(command)
-            // Start tracking progress separately
-            startProgressUpdate(recordTime)
-
-            lifecycleScope.launch {
-
-                delay(recordTime * 1000L+200L) // Wait for recording time (handled by coroutine)
-                // After recording ends
-                val spectrumOffCommand = OpenGammaKitCommands().setOut("off").toByteArray()
-                super.send(spectrumOffCommand)
-
-                measureMode = SpectrumMeasureMode.ReadSpectrum
-                measureTimer.stop() // Stop the Chronometer
-
-                measureTimer.base = SystemClock.elapsedRealtime() - (recordTime * 1000L)
-
-                delay(500L) // Wait for command output
-
-                val readCommand = OpenGammaKitCommands().readSpectrum().toByteArray()
-                super.send(readCommand)
-
-            }
+            val spectrumRecordingTimeDialog = SpectrumRecordingTimeDialogFragment.newInstance(60)
+            spectrumRecordingTimeDialog.show(childFragmentManager, "spectrum_recording_time")
         }
 
         btnScreenshot.setOnClickListener {
@@ -1133,5 +1104,41 @@ class SpectrumFragment : SerialConnectionFragment(),
     override fun onRunError(e: Exception?) {
         super.onRunError(e)
         measureTimer.stop()
+    }
+
+    override fun onSpectrumRecordingTime(time: Int) {
+        measureMode = SpectrumMeasureMode.Scheduled
+        // **Reset & Start Chronometer**
+        measureTimer.base = SystemClock.elapsedRealtime() // Reset timer initially
+        measureTimer.start()
+
+        val resetCommand = OpenGammaKitCommands().resetSpectrum().toByteArray()
+        super.send(resetCommand)
+        val spectrumCommand = OpenGammaKitCommands().setOut("spectrum").toByteArray()
+        super.send(spectrumCommand)
+
+        val command = OpenGammaKitCommands().recordStart(time, "test").toByteArray()
+        super.send(command)
+        // Start tracking progress separately
+        startProgressUpdate(time)
+
+        lifecycleScope.launch {
+
+            delay(time * 1000L+200L) // Wait for recording time (handled by coroutine)
+            // After recording ends
+            val spectrumOffCommand = OpenGammaKitCommands().setOut("off").toByteArray()
+            super.send(spectrumOffCommand)
+
+            measureMode = SpectrumMeasureMode.ReadSpectrum
+            measureTimer.stop() // Stop the Chronometer
+
+            measureTimer.base = SystemClock.elapsedRealtime() - (time * 1000L)
+
+            delay(500L) // Wait for command output
+
+            val readCommand = OpenGammaKitCommands().readSpectrum().toByteArray()
+            super.send(readCommand)
+
+        }
     }
 }

@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="20dp"
+    android:background="@drawable/dialog_rounded_corner">
+
+    <TextView
+        android:id="@+id/recordingTimeLabel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:text="Enter spectrum recording time"
+        android:textColor="@color/colorPrimaryText"
+        android:textSize="18sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <LinearLayout
+        android:id="@+id/editRecordingTimeContainer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/recordingTimeLabel"
+        android:gravity="center"
+        android:layout_marginTop="20dp">
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        android:layout_marginEnd="10dp">
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Hours"/>
+        <!-- Hours Field -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center">
+            <ImageButton
+                android:id="@+id/btnIncrementHours"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:background="@android:color/transparent"
+                android:src="@drawable/ic_up"
+                app:tint="@color/colorPrimaryText" />
+            <EditText
+                android:id="@+id/editHours"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:hint="Minutes"
+                android:inputType="number"
+                android:text="0"
+                android:textAlignment="center"
+                android:layout_marginBottom="10dp"/>
+            <ImageButton
+                android:id="@+id/btnDecrementHours"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:background="@android:color/transparent"
+                android:src="@drawable/ic_down"
+                app:tint="@color/colorPrimaryText" />
+        </LinearLayout>
+    </LinearLayout>
+        <!-- Minutes Field -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+
+        android:layout_marginEnd="10dp">
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Min"/>
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center">
+            <ImageButton
+                android:id="@+id/btnIncrementMinutes"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:background="@android:color/transparent"
+                android:src="@drawable/ic_up"
+                app:tint="@color/colorPrimaryText" />
+            <EditText
+                android:id="@+id/editMinutes"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:hint="Minutes"
+                android:inputType="number"
+                android:text="1"
+                android:textAlignment="center"
+                android:layout_marginBottom="10dp"/>
+            <ImageButton
+                android:id="@+id/btnDecrementMinutes"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:background="@android:color/transparent"
+                android:src="@drawable/ic_down"
+                app:tint="@color/colorPrimaryText" />
+        </LinearLayout>
+    </LinearLayout>
+        <!-- Seconds Field -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center_horizontal">
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Sec"/>
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center">
+            <ImageButton
+                android:id="@+id/btnIncrementSeconds"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:background="@android:color/transparent"
+                android:src="@drawable/ic_up"
+                app:tint="@color/colorPrimaryText" />
+            <EditText
+                android:id="@+id/editSeconds"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:hint="Seconds"
+                android:inputType="number"
+                android:text="0"
+                android:textAlignment="center"
+                android:layout_marginBottom="10dp"/>
+            <ImageButton
+                android:id="@+id/btnDecrementSeconds"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:background="@android:color/transparent"
+                android:src="@drawable/ic_down"
+                app:tint="@color/colorPrimaryText" />
+        </LinearLayout>
+    </LinearLayout>
+    </LinearLayout>
+    <Button
+        android:id="@+id/btnCancel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Cancel"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@+id/btnStart" />
+
+    <Button
+        android:id="@+id/btnStart"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:text="Start"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/editRecordingTimeContainer" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>
