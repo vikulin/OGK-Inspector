@@ -6,16 +6,15 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ListView
-import android.widget.SimpleAdapter
+import io.github.vikulin.opengammakit.adapter.DeviceInfoAdapter
 import io.github.vikulin.opengammakit.model.OpenGammaKitCommands
+import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
-import kotlin.collections.component1
-import kotlin.collections.component2
 import kotlin.text.iterator
 
-class InfoFragment() : SerialConnectionFragment() {
+open class InfoFragment() : SerialConnectionFragment() {
 
     private var driver: String? = null
     private var vendorId: String? = null
@@ -24,7 +23,7 @@ class InfoFragment() : SerialConnectionFragment() {
     private val buffer = StringBuilder()
 
     private lateinit var listView: ListView
-    private var deviceInfoList = mutableListOf<Map<String, String>>()
+    internal var deviceInfoList = LinkedHashMap<String, String>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -89,8 +88,6 @@ class InfoFragment() : SerialConnectionFragment() {
         return result
     }
 
-    private var openBraces = 0
-
     override fun receive(bytes: ByteArray) {
         //Log.d("Test","received ${bytes.size}")
         if (bytes.isNotEmpty()) {
@@ -101,46 +98,39 @@ class InfoFragment() : SerialConnectionFragment() {
                 when (char) {
                     '[' -> {
                         buffer.clear()
-                        openBraces++
-                        buffer.append(char)
-                    }
-                    ']' -> {
-                        openBraces--
                         buffer.append(char)
                     }
                     EOF -> {
-                        val deviceInfo = parseOutput(buffer.toString())
-
-                        deviceInfoList.addAll(deviceInfo.map { (key, value) ->
-                            mapOf("key" to key, "value" to value)
-                        })
-
-                        val adapter = SimpleAdapter(
-                            requireContext(),
-                            deviceInfoList, // Use the converted list
-                            R.layout.info_list_item,
-                            arrayOf("key", "value"),
-                            intArrayOf(R.id.keyText, R.id.valueText)
-                        )
-                        listView.adapter = adapter
-                        deviceInfoList.add(mapOf("key" to "Serial Number", "value" to "$serialNumber"))
-                        adapter.notifyDataSetChanged()
-                        buffer.clear()
-                        return
+                        try {
+                            val deviceInfo = parseOutput(buffer.toString())
+                            deviceInfo.forEach {
+                                deviceInfoList[it.key] = it.value
+                            }
+                            deviceInfoList["Serial Number"] = serialNumber.toString()
+                            getDeviceInfo(deviceInfoList)
+                            refresh()
+                        } catch (e: Exception){
+                            e.printStackTrace()
+                        } finally {
+                            buffer.clear()
+                        }
                     }
-                    '\r' -> {}
-                    '\n' -> {}
+                    '\r', '\n' -> {}
                     else -> {
                         buffer.append(char)
                     }
                 }
-                if(openBraces>1 || openBraces<0){
-                    Log.e("Test", "openBraces issue: $buffer")
-                    buffer.clear() // Discard malformed or incomplete JSON
-                    openBraces = 0
-                }
             }
         }
+    }
+
+    open fun getDeviceInfo(deviceInfoList: LinkedHashMap<String, String>){
+        val adapter = DeviceInfoAdapter(requireContext(), deviceInfoList)
+        listView.adapter = adapter
+    }
+
+    private fun refresh(){
+        (listView.adapter as DeviceInfoAdapter).notifyDataSetChanged()
     }
 
     override fun status(str: String) {
@@ -154,14 +144,14 @@ class InfoFragment() : SerialConnectionFragment() {
     ): View? {
 
         val view = inflater.inflate(R.layout.fragment_info, container, false)
-        deviceInfoList.addAll(
-            listOf(
-                mapOf("key" to "Driver", "value" to (driver ?: "<no driver>")),
-                mapOf("key" to "Vendor", "value" to (vendorId ?: "Unknown Vendor")),
-                mapOf("key" to "Product", "value" to (productId ?: "Unknown Product")),
-                mapOf("key" to "Device Id", "value" to "$deviceId"),
-                mapOf("key" to "Port", "value" to "$portNum"),
-                mapOf("key" to "Baud", "value" to "$baudRate"),
+        deviceInfoList.putAll(
+            mapOf(
+                "Driver" to (driver ?: "<no driver>"),
+                "Vendor" to (vendorId ?: "Unknown Vendor"),
+                "Product" to (productId ?: "Unknown Product"),
+                "Device Id" to "$deviceId",
+                "Port" to "$portNum",
+                "Baud" to "$baudRate"
             )
         )
 
