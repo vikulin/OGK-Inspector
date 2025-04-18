@@ -21,13 +21,14 @@
         android:layout_width="match_parent"
         android:layout_height="1dp"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintTop_toTopOf="@+id/spectrumChart" />
+        app:layout_constraintTop_toTopOf="@+id/spectrumChart"
+        android:layout_marginBottom="25dp"/>
 
     <!-- ImageButtons centered vertically with equal spacing -->
     <ScrollView
         android:id="@+id/imageButtonsScroll"
         android:layout_width="wrap_content"
-        android:layout_height="322dp"
+        android:layout_height="275dp"
         android:layout_marginEnd="50dp"
         android:fillViewport="true"
         app:layout_constraintBottom_toBottomOf="@+id/view"
@@ -39,60 +40,134 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:gravity="center"
+            android:layout_marginEnd="24dp"
             android:orientation="vertical">
 
-            <ImageButton
-                android:id="@+id/btnCalibration"
+            <!-- Calibration Button -->
+            <com.google.android.material.card.MaterialCardView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_margin="24dp"
-                android:background="@android:color/transparent"
-                app:tint="@color/colorPrimaryText"
-                flexbox:srcCompat="@drawable/ic_calibration" />
+                android:layout_marginVertical="6dp"
+                app:cardElevation="4dp"
+                app:cardBackgroundColor="@android:color/transparent"
+                app:strokeWidth="0dp">
 
-            <ImageButton
-                android:id="@+id/btnFwhm"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="@android:color/transparent"
-                app:tint="@color/colorPrimaryText"
-                flexbox:srcCompat="@drawable/ic_fwhm" />
+                <ImageButton
+                    android:id="@+id/btnCalibration"
+                    android:layout_width="@dimen/buttons_size"
+                    android:layout_height="@dimen/buttons_size"
+                    android:background="?selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/calibration"
+                    app:tint="@color/colorPrimaryText"
+                    app:srcCompat="@drawable/ic_calibration" />
+            </com.google.android.material.card.MaterialCardView>
 
-            <ImageButton
-                android:id="@+id/btnLive"
+            <!-- FWHM Button -->
+            <com.google.android.material.card.MaterialCardView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="24dp"
-                android:background="@android:color/transparent"
-                app:tint="@color/colorPrimaryText"
-                flexbox:srcCompat="@drawable/ic_live" />
+                android:layout_marginVertical="6dp"
+                app:cardElevation="4dp"
+                app:cardBackgroundColor="@android:color/transparent"
+                app:strokeWidth="0dp">
 
-            <ImageButton
-                android:id="@+id/btnSchedule"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="24dp"
-                android:background="@android:color/transparent"
-                app:tint="@color/colorPrimaryText"
-                flexbox:srcCompat="@drawable/ic_schedule" />
+                <ImageButton
+                    android:id="@+id/btnFwhm"
+                    android:layout_width="@dimen/buttons_size"
+                    android:layout_height="@dimen/buttons_size"
+                    android:background="?selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/fwhm"
+                    app:tint="@color/colorPrimaryText"
+                    app:srcCompat="@drawable/ic_fwhm" />
+            </com.google.android.material.card.MaterialCardView>
 
-            <ImageButton
-                android:id="@+id/btnScreenshot"
+            <!-- Live Button -->
+            <com.google.android.material.card.MaterialCardView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="24dp"
-                android:background="@android:color/transparent"
-                app:tint="@color/colorPrimaryText"
-                flexbox:srcCompat="@drawable/ic_screenshot" />
+                android:layout_marginVertical="6dp"
+                app:cardElevation="4dp"
+                app:cardBackgroundColor="@android:color/transparent"
+                app:strokeWidth="0dp">
 
-            <ImageButton
-                android:id="@+id/btnShare"
+                <ImageButton
+                    android:id="@+id/btnLive"
+                    android:layout_width="@dimen/buttons_size"
+                    android:layout_height="@dimen/buttons_size"
+                    android:background="?selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/live"
+                    app:tint="@color/colorPrimaryText"
+                    app:srcCompat="@drawable/ic_live" />
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Schedule Button with Progress Overlay -->
+            <FrameLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="24dp"
-                android:background="@android:color/transparent"
-                app:tint="@color/colorPrimaryText"
-                flexbox:srcCompat="@drawable/ic_share" />
+                android:layout_marginVertical="6dp">
+
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    app:cardElevation="4dp"
+                    app:cardBackgroundColor="@android:color/transparent"
+                    app:strokeWidth="0dp">
+
+                    <io.github.vikulin.opengammakit.view.ClockProgressView
+                        android:id="@+id/clockProgressView"
+                        android:layout_width="@dimen/buttons_size"
+                        android:layout_height="@dimen/buttons_size"
+                        android:layout_gravity="center" />
+
+                    <ImageButton
+                        android:id="@+id/btnSchedule"
+                        android:layout_width="@dimen/buttons_size"
+                        android:layout_height="@dimen/buttons_size"
+                        android:background="@android:color/transparent"
+                        android:contentDescription="@string/schedule"
+                        app:tint="@color/colorPrimaryText"
+                        app:srcCompat="@drawable/ic_schedule" />
+                </com.google.android.material.card.MaterialCardView>
+
+            </FrameLayout>
+
+            <!-- Screenshot Button -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginVertical="6dp"
+                app:cardElevation="4dp"
+                app:cardBackgroundColor="@android:color/transparent"
+                app:strokeWidth="0dp">
+
+                <ImageButton
+                    android:id="@+id/btnScreenshot"
+                    android:layout_width="@dimen/buttons_size"
+                    android:layout_height="@dimen/buttons_size"
+                    android:background="?selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/screenshot"
+                    app:tint="@color/colorPrimaryText"
+                    app:srcCompat="@drawable/ic_screenshot" />
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Share Button -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginVertical="6dp"
+                app:cardElevation="4dp"
+                app:cardBackgroundColor="@android:color/transparent"
+                app:strokeWidth="0dp">
+
+                <ImageButton
+                    android:id="@+id/btnShare"
+                    android:layout_width="@dimen/buttons_size"
+                    android:layout_height="@dimen/buttons_size"
+                    android:background="?selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/share"
+                    app:tint="@color/colorPrimaryText"
+                    app:srcCompat="@drawable/ic_share" />
+            </com.google.android.material.card.MaterialCardView>
         </LinearLayout>
     </ScrollView>
 

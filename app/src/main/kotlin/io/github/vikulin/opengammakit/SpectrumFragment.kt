@@ -9,6 +9,8 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.provider.MediaStore
 import android.util.Log
@@ -47,6 +49,7 @@ import androidx.core.content.edit
 import androidx.lifecycle.lifecycleScope
 import io.github.vikulin.opengammakit.model.OpenGammaKitData
 import io.github.vikulin.opengammakit.view.CalibrationUpdateOrRemoveDialogFragment
+import io.github.vikulin.opengammakit.view.ClockProgressView
 import io.github.vikulin.opengammakit.view.ErrorDialogFragment
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -66,6 +69,7 @@ class SpectrumFragment : SerialConnectionFragment(),
     private lateinit var btnShare: ImageButton
     private lateinit var btnLive: ImageButton
     private lateinit var btnSchedule: ImageButton
+    private lateinit var clockProgressView: ClockProgressView
     private lateinit var spectrumDataSet: LineDataSet
     private var pauseOffset: Long = 0
     private var verticalLimitLine: LimitLine? = null
@@ -99,6 +103,7 @@ class SpectrumFragment : SerialConnectionFragment(),
         btnShare = view.findViewById(R.id.btnShare)
         btnLive = view.findViewById(R.id.btnLive)
         btnSchedule = view.findViewById(R.id.btnSchedule)
+        clockProgressView = view.findViewById(R.id.clockProgressView)
 
         gestureDetector = GestureDetector(requireContext(), object : GestureDetector.SimpleOnGestureListener() {
             override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
@@ -134,6 +139,8 @@ class SpectrumFragment : SerialConnectionFragment(),
                             }
                         }
                     }
+
+                    SpectrumMeasureMode.Idle -> {}
                 }
                 return true
             }
@@ -165,35 +172,49 @@ class SpectrumFragment : SerialConnectionFragment(),
 
         btnLive.setOnClickListener {
             measureMode = SpectrumMeasureMode.Live
-            //rest timer
-            measureTimer.start()
-            val spectrumCommand = OpenGammaKitCommands().setOut("spectrum").toByteArray()
-            super.send(spectrumCommand)
-        }
-
-        btnSchedule.setOnClickListener {
-            // Scheduled mode starts with Live mode for realtime spectrum updates
-            // The code switches to Scheduled mode once the measurement time is over
-            measureMode = SpectrumMeasureMode.Live
-            //rest timer
+            // **Reset & Start Chronometer**
+            measureTimer.base = SystemClock.elapsedRealtime() // Reset timer initially
             measureTimer.start()
             val resetCommand = OpenGammaKitCommands().resetSpectrum().toByteArray()
             super.send(resetCommand)
             val spectrumCommand = OpenGammaKitCommands().setOut("spectrum").toByteArray()
             super.send(spectrumCommand)
-            val recordTime = 10
+        }
+
+        btnSchedule.setOnClickListener {
+            measureMode = SpectrumMeasureMode.Scheduled
+            // **Reset & Start Chronometer**
+            measureTimer.base = SystemClock.elapsedRealtime() // Reset timer initially
+            measureTimer.start()
+
+            val resetCommand = OpenGammaKitCommands().resetSpectrum().toByteArray()
+            super.send(resetCommand)
+            val spectrumCommand = OpenGammaKitCommands().setOut("spectrum").toByteArray()
+            super.send(spectrumCommand)
+
+            val recordTime = 10 // Take duration dynamically
             val command = OpenGammaKitCommands().recordStart(recordTime, "test").toByteArray()
             super.send(command)
+            // Start tracking progress separately
+            startProgressUpdate(recordTime)
+
             lifecycleScope.launch {
-                delay(recordTime*1000L)
-                val spectrumCommand = OpenGammaKitCommands().setOut("off").toByteArray()
-                super.send(spectrumCommand)
-                // Code to run after one minute
-                measureMode = SpectrumMeasureMode.Scheduled
-                measureTimer.stop()
-                // Send code to read resulting spectrum
-                val command = OpenGammaKitCommands().readSpectrum().toByteArray()
-                super.send(command)
+
+                delay(recordTime * 1000L+200L) // Wait for recording time (handled by coroutine)
+                // After recording ends
+                val spectrumOffCommand = OpenGammaKitCommands().setOut("off").toByteArray()
+                super.send(spectrumOffCommand)
+
+                measureMode = SpectrumMeasureMode.Idle
+                measureTimer.stop() // Stop the Chronometer
+
+                measureTimer.base = SystemClock.elapsedRealtime() - (recordTime * 1000L)
+
+                delay(500L) // Wait for command output
+
+                val readCommand = OpenGammaKitCommands().readSpectrum().toByteArray()
+                super.send(readCommand)
+
             }
         }
 
@@ -204,6 +225,42 @@ class SpectrumFragment : SerialConnectionFragment(),
         btnShare.setOnClickListener {
             shareChartScreenshot(requireContext(), spectrumChart, view.findViewById(R.id.tableContainer))
         }
+    }
+
+    private fun updateRecordingProgress(progress: Float) {
+        when {
+            progress <= 0f -> {
+                btnSchedule.alpha = 0.5f
+                clockProgressView.setProgress(0f)
+            }
+            progress in 0.01f..99.99f -> {
+                btnSchedule.alpha = 0.5f
+                clockProgressView.setProgress(progress)
+            }
+            progress >= 100f -> {
+                btnSchedule.alpha = 1f
+                clockProgressView.setProgress(0f)
+            }
+        }
+    }
+
+    private fun startProgressUpdate(durationSeconds: Int) {
+        val handler = Handler(Looper.getMainLooper())
+        val totalSteps = durationSeconds * 20
+        var step = 0
+
+        val runnable = object : Runnable {
+            override fun run() {
+                if (step <= totalSteps) {
+                    val progress = (step.toFloat() / totalSteps) * 100f
+                    updateRecordingProgress(progress)
+                    step++
+                    handler.postDelayed(this, 50L)
+                }
+            }
+        }
+
+        handler.post(runnable)
     }
 
     private fun initCalibration(savedInstanceState: Bundle?) {
@@ -264,6 +321,16 @@ class SpectrumFragment : SerialConnectionFragment(),
             setDrawValues(false)
             color = resources.getColor(android.R.color.holo_blue_light, null)
         }
+        // Recover the elapsed time and restore the Chronometer
+        savedInstanceState?.getLong("chronometer_elapsed_time", 0L)?.let {
+            measureTimer.base = SystemClock.elapsedRealtime() - it
+        }
+        // Restore measureMode state
+        measureMode = savedInstanceState?.getString("measure_mode", SpectrumMeasureMode.Live.name)
+            ?.let { SpectrumMeasureMode.valueOf(it) } ?: SpectrumMeasureMode.Live
+        if(measureMode == SpectrumMeasureMode.Scheduled){
+            measureTimer.start() // Resume the timer
+        }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -282,6 +349,13 @@ class SpectrumFragment : SerialConnectionFragment(),
             )
         }.toTypedArray()
         outState.putSerializable("CALIBRATION_DATA", calibrationDataList)
+        // Save the elapsed time from the Chronometer
+        val elapsedTime = SystemClock.elapsedRealtime() - measureTimer.base
+        outState.putLong("chronometer_elapsed_time", elapsedTime)
+
+        // Save measureMode state if needed
+        outState.putString("measure_mode", measureMode.name)
+
     }
 
     private fun setupChart() {
@@ -460,7 +534,7 @@ class SpectrumFragment : SerialConnectionFragment(),
     private var measureMode = SpectrumMeasureMode.Live
 
     enum class SpectrumMeasureMode {
-        Live, Scheduled, Fwhm, Calibration
+        Live, Scheduled, Fwhm, Calibration, Idle
     }
 
 //    override fun receive(bytes: ByteArray) {
@@ -477,7 +551,7 @@ class SpectrumFragment : SerialConnectionFragment(),
             val EOF = '\u0000'
             for (char in inputString) {
                 when (measureMode) {
-                    SpectrumMeasureMode.Live -> {
+                    SpectrumMeasureMode.Live, SpectrumMeasureMode.Scheduled -> {
                         when (char) {
                             '[' -> {
                                 openBraces++
@@ -522,7 +596,7 @@ class SpectrumFragment : SerialConnectionFragment(),
 
                     SpectrumMeasureMode.Fwhm -> {}
                     SpectrumMeasureMode.Calibration -> {}
-                    SpectrumMeasureMode.Scheduled -> {
+                    SpectrumMeasureMode.Idle -> {
                         when (char) {
                             '{', -> {
                                 // start input recording into a buffer
@@ -563,6 +637,8 @@ class SpectrumFragment : SerialConnectionFragment(),
                             }
                         }
                     }
+
+                    SpectrumMeasureMode.Idle -> {}
                 }
             }
         }

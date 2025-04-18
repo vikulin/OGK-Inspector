@@ -3,4 +3,10 @@
     <string name="app_title">OpenGammaKit Inspector</string>
     <string name="app_name">OGK Inspector</string>
     <string name="devices">USB Devices</string>
+    <string name="calibration">Calibration</string>
+    <string name="fwhm">Fwhm</string>
+    <string name="live">Live</string>
+    <string name="schedule">Schedule</string>
+    <string name="screenshot">Screenshot</string>
+    <string name="share">Share</string>
 </resources>
