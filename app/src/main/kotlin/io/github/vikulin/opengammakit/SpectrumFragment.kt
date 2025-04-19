@@ -50,12 +50,14 @@ import androidx.lifecycle.lifecycleScope
 import io.github.vikulin.opengammakit.model.OpenGammaKitData
 import io.github.vikulin.opengammakit.view.CalibrationUpdateOrRemoveDialogFragment
 import io.github.vikulin.opengammakit.view.ClockProgressView
-import io.github.vikulin.opengammakit.view.CounterThresholdDialogFragment
 import io.github.vikulin.opengammakit.view.ErrorDialogFragment
 import io.github.vikulin.opengammakit.view.SpectrumRecordingTimeDialogFragment
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.io.BufferedReader
+import java.io.InputStreamReader
 import kotlin.text.iterator
+import androidx.core.net.toUri
 
 class SpectrumFragment : SerialConnectionFragment(),
     CalibrationUpdateOrRemoveDialogFragment.CalibrationDialogListener,
@@ -84,6 +86,25 @@ class SpectrumFragment : SerialConnectionFragment(),
 
     private val zeroedData: String by lazy {
         requireContext().assets.open("spectrum_zeroed.json").bufferedReader().use { it.readText() }
+    }
+
+    @Throws(Exception::class) // Annotation indicates this method can throw exceptions
+    fun readAndParseFile(context: Context, uri: Uri): OpenGammaKitData {
+        // Read the file content
+        val inputStream = context.contentResolver.openInputStream(uri)
+            ?: throw Exception("Unable to open input stream for URI: $uri")
+
+        val buffer = StringBuilder()
+        BufferedReader(InputStreamReader(inputStream)).use { reader ->
+            var line: String?
+            while (reader.readLine().also { line = it } != null) {
+                buffer.append(line)
+            }
+        }
+
+        // Parse the JSON content
+        val json = Json { ignoreUnknownKeys = true } // Customize JSON parser if necessary
+        return json.decodeFromString(buffer.toString())
     }
 
     override fun onCreateView(
@@ -143,17 +164,60 @@ class SpectrumFragment : SerialConnectionFragment(),
                         }
                     }
 
-                    SpectrumMeasureMode.ReadSpectrum -> {}
+                    SpectrumMeasureMode.ReadSpectrumFromDevice -> {}
+                    SpectrumMeasureMode.ReadSpectrumFromFile -> {}
                 }
                 return true
             }
         })
 
-        initChart(savedInstanceState)
+        arguments?.let {
+            val fileUri = arguments?.getString("file_spectrum_uri")?.toUri()
+            fileUri?.let { uri ->
+                try {
+                    // Handle the Uri (e.g., read and parse the file)
+                    measureMode = SpectrumMeasureMode.ReadSpectrumFromFile
+                    val openGammaKitData = readAndParseFile(requireContext(), uri)
+                    Log.d(
+                        "Test",
+                        "Parsed input file $uri. Data spectrum size: ${openGammaKitData.data.size}"
+                    )
+
+                    // Process file data here
+                    val counts =
+                        openGammaKitData.data[0].resultData.energySpectrum.validPulseCount
+                    val spectrum =
+                        openGammaKitData.data[0].resultData.energySpectrum.spectrum
+                    val measureTime = openGammaKitData.data[0].resultData.energySpectrum.measurementTime
+                    measureTimer.base = SystemClock.elapsedRealtime() - measureTime*1000
+                    val entriesArray = spectrum.mapIndexed { index, entry ->
+                        floatArrayOf(index.toFloat(), entry.toFloat()) // Create a float array for each entry
+                    }.toTypedArray() // Convert the List<float[]> to float[][]
+
+                    val outState = Bundle()
+                    outState.putSerializable("GRAPH_ENTRIES", entriesArray)
+                    // Save the elapsed time for the Chronometer
+                    outState.putLong("chronometer_elapsed_time", measureTime)
+                    // Save measureMode state if needed
+                    outState.putString("measure_mode", measureMode.name)
+                    initChart(outState)
+                    setupChart()
+                    updateChartSpectrumData(spectrum)
+                    updateCounts(counts)
+                    updateChannels(openGammaKitData.data[0].resultData.energySpectrum.numberOfChannels)
+                } catch (e: Exception){
+                    e.printStackTrace()
+                    val error = e.message.toString()
+                    val errorDialog = ErrorDialogFragment.Companion.newInstance(error)
+                    errorDialog.show(childFragmentManager, "error_dialog_fragment")
+                }
+            }?: run {
+                initChart(savedInstanceState)
+                setupChart()
+            }
+        }
 
         initCalibration(savedInstanceState)
-
-        setupChart()
 
         updateChartWithCombinedXAxis()
 
@@ -507,7 +571,7 @@ class SpectrumFragment : SerialConnectionFragment(),
     private var measureMode = SpectrumMeasureMode.Live
 
     enum class SpectrumMeasureMode {
-        Live, Scheduled, Fwhm, Calibration, ReadSpectrum
+        Live, Scheduled, Fwhm, Calibration, ReadSpectrumFromDevice, ReadSpectrumFromFile
     }
 
 //    override fun receive(bytes: ByteArray) {
@@ -570,9 +634,9 @@ class SpectrumFragment : SerialConnectionFragment(),
 
                     SpectrumMeasureMode.Fwhm -> {}
                     SpectrumMeasureMode.Calibration -> {}
-                    SpectrumMeasureMode.ReadSpectrum -> {
+                    SpectrumMeasureMode.ReadSpectrumFromDevice -> {
                         when (char) {
-                            '{', -> {
+                            '{' -> {
                                 // start input recording into a buffer
                                 isUsbSerialRecording = true
                                 buffer.append(char)
@@ -611,6 +675,8 @@ class SpectrumFragment : SerialConnectionFragment(),
                             }
                         }
                     }
+
+                    SpectrumMeasureMode.ReadSpectrumFromFile -> {}
                 }
             }
         }
@@ -638,20 +704,35 @@ class SpectrumFragment : SerialConnectionFragment(),
 
     override fun onResume() {
         super.onResume()
-        startTimer() // Automatically resume the timer when the fragment is visible again
+        when(measureMode) {
+            SpectrumMeasureMode.Live -> {startTimer()}
+            SpectrumMeasureMode.Scheduled -> {startTimer()}
+            SpectrumMeasureMode.Fwhm -> {}
+            SpectrumMeasureMode.Calibration -> {}
+            SpectrumMeasureMode.ReadSpectrumFromDevice -> {}
+            SpectrumMeasureMode.ReadSpectrumFromFile -> {}
+        }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        val args = getBundle().apply {
-            putString("command", "set out off\n")
+        when(measureMode) {
+            SpectrumMeasureMode.Live, SpectrumMeasureMode.Scheduled  -> {
+                val args = getBundle().apply {
+                    putString("command", "set out off\n")
+                }
+                val fragment: Fragment = SerialCommandFragment()
+                fragment.arguments = args
+                parentFragmentManager.beginTransaction()
+                    .replace(R.id.fragment, fragment, "command")
+                    .addToBackStack(null)
+                    .commit()
+            }
+            SpectrumMeasureMode.Fwhm -> {}
+            SpectrumMeasureMode.Calibration -> {}
+            SpectrumMeasureMode.ReadSpectrumFromDevice -> {}
+            SpectrumMeasureMode.ReadSpectrumFromFile -> {}
         }
-        val fragment: Fragment = SerialCommandFragment()
-        fragment.arguments = args
-        parentFragmentManager.beginTransaction()
-            .replace(R.id.fragment, fragment, "command")
-            .addToBackStack(null)
-            .commit()
         saveCalibrationData()
     }
 
@@ -921,20 +1002,22 @@ class SpectrumFragment : SerialConnectionFragment(),
 
     // Function to save calibration data
     private fun saveCalibrationData() {
-        sharedPreferences.edit {
+        serialNumber.let {
+            sharedPreferences.edit {
 
-            // Convert the calibration data list to JSON using kotlinx.serialization
-            val serializedData = Json.encodeToString(verticalCalibrationLineList.map {
-                CalibrationData(
-                    limitLineValue = it.first.limit,
-                    limitLineLabel = it.first.label,
-                    channel = it.second.first,
-                    emissionSource = it.second.second
-                )
-            })
+                // Convert the calibration data list to JSON using kotlinx.serialization
+                val serializedData = Json.encodeToString(verticalCalibrationLineList.map {
+                    CalibrationData(
+                        limitLineValue = it.first.limit,
+                        limitLineLabel = it.first.label,
+                        channel = it.second.first,
+                        emissionSource = it.second.second
+                    )
+                })
 
-            putString(calibrationPreferencesKey+serialNumber, serializedData)
-        } // Commit changes asynchronously
+                putString(calibrationPreferencesKey+serialNumber, serializedData)
+            } // Commit changes asynchronously
+        }
     }
 
     // Function to load calibration data
@@ -1129,7 +1212,7 @@ class SpectrumFragment : SerialConnectionFragment(),
             val spectrumOffCommand = OpenGammaKitCommands().setOut("off").toByteArray()
             super.send(spectrumOffCommand)
 
-            measureMode = SpectrumMeasureMode.ReadSpectrum
+            measureMode = SpectrumMeasureMode.ReadSpectrumFromDevice
             measureTimer.stop() // Stop the Chronometer
 
             measureTimer.base = SystemClock.elapsedRealtime() - (time * 1000L)

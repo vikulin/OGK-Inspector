@@ -9,4 +9,7 @@
     <string name="schedule">Schedule</string>
     <string name="screenshot">Screenshot</string>
     <string name="share">Share</string>
+    <string name="open_file">Open file</string>
+    <string name="isotope">Isotope</string>
+    <string name="settings">Settings</string>
 </resources>

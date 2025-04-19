@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical">
@@ -9,7 +10,8 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:divider="@android:color/darker_gray"
-        android:dividerHeight="1dp" />
+        android:dividerHeight="1dp"
+        app:layout_constraintBottom_toTopOf="@+id/imageButtonsScroll"/>
 
     <TextView
         android:id="@+id/empty"
@@ -18,6 +20,86 @@
         android:text="No USB devices found"
         android:textSize="18sp"
         android:gravity="center"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
         android:textAppearance="@style/TextAppearance.AppCompat.Medium"/>
 
-</LinearLayout>
+    <ScrollView
+        android:id="@+id/imageButtonsScroll"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:fillViewport="true"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_horizontal"
+            android:orientation="horizontal"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="16dp">
+
+            <!-- Calibration Button -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginVertical="6dp"
+                app:cardBackgroundColor="@android:color/transparent"
+                app:cardElevation="4dp"
+                app:strokeWidth="0dp">
+
+                <ImageButton
+                    android:id="@+id/btnOpenFile"
+                    android:layout_width="@dimen/buttons_size"
+                    android:layout_height="@dimen/buttons_size"
+                    android:background="?selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/open_file"
+                    app:srcCompat="@drawable/ic_open_file"
+                    app:tint="@color/colorPrimaryText" />
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- FWHM Button -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginVertical="6dp"
+                app:cardBackgroundColor="@android:color/transparent"
+                app:cardElevation="4dp"
+                app:strokeWidth="0dp">
+
+                <ImageButton
+                    android:id="@+id/btnIsotope"
+                    android:layout_width="@dimen/buttons_size"
+                    android:layout_height="@dimen/buttons_size"
+                    android:background="?selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/isotope"
+                    app:srcCompat="@drawable/ic_isotope"
+                    app:tint="@color/colorPrimaryText" />
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Live Button -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginVertical="6dp"
+                app:cardBackgroundColor="@android:color/transparent"
+                app:cardElevation="4dp"
+                app:strokeWidth="0dp">
+
+                <ImageButton
+                    android:id="@+id/btnSettings"
+                    android:layout_width="@dimen/buttons_size"
+                    android:layout_height="@dimen/buttons_size"
+                    android:background="?selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/settings"
+                    app:srcCompat="@drawable/ic_settings"
+                    app:tint="@color/colorPrimaryText" />
+            </com.google.android.material.card.MaterialCardView>
+
+        </LinearLayout>
+    </ScrollView>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

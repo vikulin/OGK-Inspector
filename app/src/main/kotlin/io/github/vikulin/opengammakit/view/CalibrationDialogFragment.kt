@@ -13,7 +13,7 @@ import android.widget.EditText
 import androidx.fragment.app.DialogFragment
 import com.github.mikephil.charting.components.LimitLine
 import io.github.vikulin.opengammakit.R
-import io.github.vikulin.opengammakit.adapter.IsotopeAdapter
+import io.github.vikulin.opengammakit.adapter.IsotopeSelectAdapter
 import io.github.vikulin.opengammakit.model.EmissionSource
 import io.github.vikulin.opengammakit.model.Isotope
 import org.json.JSONObject
@@ -103,7 +103,7 @@ class CalibrationDialogFragment : DialogFragment() {
 
         try {
             // Open the JSON file from assets
-            val json = requireContext().assets.open("isotopes_keV.json").bufferedReader().use { it.readText() }
+            val json = requireContext().assets.open("isotopes.json").bufferedReader().use { it.readText() }
             val jsonObject = JSONObject(json)
             val isotopesArray = jsonObject.getJSONArray("isotopes")
 
@@ -117,10 +117,11 @@ class CalibrationDialogFragment : DialogFragment() {
                 for (j in 0 until energiesArray.length()) {
                     energies.add(energiesArray.getDouble(j))
                 }
-                isotopesList.add(Isotope(name, energies))
+                val halfLife = isotope.getDouble("hl")
+                isotopesList.add(Isotope(name, energies, halfLife))
             }
 
-            val adapter = IsotopeAdapter(requireContext(), isotopesList)
+            val adapter = IsotopeSelectAdapter(requireContext(), isotopesList)
             editPeak.setAdapter(adapter)
 
             var enteredValue = ""

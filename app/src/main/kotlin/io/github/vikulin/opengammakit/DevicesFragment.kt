@@ -14,6 +14,7 @@ import android.widget.ImageButton
 import android.widget.ListView
 import android.widget.TextView
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentManager
 import androidx.fragment.app.ListFragment
 import com.hoho.android.usbserial.driver.UsbSerialDriver
 import com.hoho.android.usbserial.driver.UsbSerialProber
@@ -23,6 +24,8 @@ import io.github.vikulin.opengammakit.InfoFragment
 import io.github.vikulin.opengammakit.R
 import io.github.vikulin.opengammakit.SpectrumFragment
 import io.github.vikulin.opengammakit.TerminalFragment
+import io.github.vikulin.opengammakit.view.IsotopeListFragment
+import io.github.vikulin.opengammakit.view.SpectrumFileChooserDialogFragment
 import java.util.Locale
 
 class DevicesFragment : ListFragment() {
@@ -144,7 +147,19 @@ class DevicesFragment : ListFragment() {
         // Find the ListView and the empty TextView
         val listView = view.findViewById<ListView>(android.R.id.list)
         listView.emptyView = view.findViewById(R.id.empty)
-
+        val btnOpenFile = view.findViewById<ImageButton>(R.id.btnOpenFile)
+        btnOpenFile.setOnClickListener {
+            val spectrumFileChooserDialog = SpectrumFileChooserDialogFragment()
+            spectrumFileChooserDialog.show(childFragmentManager, "spectrum_file_chooser_dialog_fragment")
+        }
+        val btnIsotope = view.findViewById<ImageButton>(R.id.btnIsotope)
+        btnIsotope.setOnClickListener {
+            val fragment: Fragment = IsotopeListFragment()
+            parentFragmentManager.beginTransaction()
+                .replace(R.id.fragment, fragment, "isotope_list")
+                .addToBackStack(null)
+                .commit()
+        }
         return view
     }
 

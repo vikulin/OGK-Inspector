@@ -1,66 +1,64 @@
 package io.github.vikulin.opengammakit.adapter
 
-import android.content.Context
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.ArrayAdapter
-import android.widget.Filter
 import android.widget.TextView
+import androidx.recyclerview.widget.RecyclerView
 import io.github.vikulin.opengammakit.R
 import io.github.vikulin.opengammakit.model.Isotope
 
-class IsotopeAdapter(context: Context, private val isotopes: List<Isotope>) :
-    ArrayAdapter<Isotope>(context, R.layout.dropdown_item, isotopes) {
+class IsotopeAdapter(private var isotopes: List<Isotope>) :
+    RecyclerView.Adapter<IsotopeAdapter.IsotopeViewHolder>() {
 
-    override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
-        val view = convertView ?: LayoutInflater.from(context).inflate(R.layout.dropdown_item, parent, false)
-        val isotope = getItem(position)
-
-        val textView = view.findViewById<TextView>(R.id.isotope) // Ensure reference exists in your layout
-        textView.text = "${isotope?.name}: ${isotope?.energies?.joinToString(", ")}"
-
-        return view
+    class IsotopeViewHolder(view: View) : RecyclerView.ViewHolder(view) {
+        val nameText: TextView = view.findViewById(R.id.nameText)
+        val energiesText: TextView = view.findViewById(R.id.energiesText)
+        val halfLifeText: TextView = view.findViewById(R.id.halfLifeText)
     }
 
-    private var filteredIsotopes: List<Isotope> = isotopes // List for filtered results
-
-    override fun getCount(): Int {
-        return filteredIsotopes.size // Return the size of the filtered list
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): IsotopeViewHolder {
+        val view = LayoutInflater.from(parent.context)
+            .inflate(R.layout.isotope_item, parent, false)
+        return IsotopeViewHolder(view)
     }
 
-    override fun getItem(position: Int): Isotope? {
-        if(position > filteredIsotopes.size-1){
-            return null
-        }
-        return filteredIsotopes[position] // Return the item from the filtered list
+    override fun onBindViewHolder(holder: IsotopeViewHolder, position: Int) {
+        val isotope = isotopes[position]
+        holder.nameText.text = isotope.name
+        holder.energiesText.text = "${isotope.energies.joinToString(", ")}"
+        holder.halfLifeText.text = "${formatHalfLife(isotope.hl)}"
     }
 
-    override fun getFilter(): Filter {
-        return object : Filter() {
-            override fun performFiltering(constraint: CharSequence?): FilterResults {
-                val query = constraint?.toString()?.lowercase() ?: ""
-                val results = FilterResults()
+    override fun getItemCount() = isotopes.size
 
-                filteredIsotopes = if (query.isEmpty()) {
-                    isotopes // Show all items if the query is empty
-                } else {
-                    // Filter isotopes based on matching energies or names
-                    isotopes.filter { isotope ->
-                        isotope.name.lowercase().contains(query) ||
-                                isotope.energies.any { energy -> energy.toString().contains(query) }
-                    }
-                }
+    private fun formatHalfLife(seconds: Double): String {
+        val minute = 60.0
+        val hour = 60 * minute
+        val day = 24 * hour
+        val month = 30.44 * day
+        val year = 365.25 * day
 
-                results.values = filteredIsotopes
-                results.count = filteredIsotopes.size
-                return results
-            }
-
-            override fun publishResults(constraint: CharSequence?, results: FilterResults?) {
-                filteredIsotopes = results?.values as List<Isotope>? ?: isotopes
-                notifyDataSetChanged() // Refresh the dropdown with filtered results
+        fun formatValue(value: Double, unit: String): String {
+            return if (value > 999) {
+                "%.2e %s".format(value, unit)
+            } else {
+                "%.2f %s".format(value, unit)
             }
         }
+
+        return when {
+            seconds >= year -> formatValue(seconds / year, "Years")
+            seconds >= month -> formatValue(seconds / month, "Months")
+            seconds >= day -> formatValue(seconds / day, "Days")
+            seconds >= hour -> formatValue(seconds / hour, "Hours")
+            seconds >= minute -> formatValue(seconds / minute, "Minutes")
+            else -> formatValue(seconds, "Seconds")
+        }
+    }
+
+    fun updateList(newList: List<Isotope>) {
+        isotopes = newList
+        notifyDataSetChanged()
     }
 }
