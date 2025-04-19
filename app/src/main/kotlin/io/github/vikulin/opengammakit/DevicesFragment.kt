@@ -2,6 +2,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.SharedPreferences
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
 import android.os.Bundle
@@ -21,7 +22,9 @@ import com.hoho.android.usbserial.driver.UsbSerialProber
 import io.github.vikulin.opengammakit.CounterFragment
 import io.github.vikulin.opengammakit.CustomProber
 import io.github.vikulin.opengammakit.InfoFragment
+import io.github.vikulin.opengammakit.OpenGammaKitApp
 import io.github.vikulin.opengammakit.R
+import io.github.vikulin.opengammakit.SettingsFragment
 import io.github.vikulin.opengammakit.SpectrumFragment
 import io.github.vikulin.opengammakit.TerminalFragment
 import io.github.vikulin.opengammakit.view.IsotopeListFragment
@@ -40,11 +43,17 @@ class DevicesFragment : ListFragment() {
     private lateinit var listAdapter: ArrayAdapter<ListItem>
     private var baudRate = 19200
     private var withIoManager = true
+    private lateinit var sharedPreferences: SharedPreferences
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setHasOptionsMenu(true)
+        // Initialize SharedPreferences
+        sharedPreferences = requireContext().getSharedPreferences("AppPreferences", 0)
+        val savedOption = sharedPreferences.getString("open_when_boot", "None")
+
         listAdapter = object : ArrayAdapter<ListItem>(requireActivity(), R.layout.device_list_item, listItems) {
+
             override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
                 val item = listItems[position]
                 val view = convertView ?: layoutInflater.inflate(R.layout.device_list_item, parent, false)
@@ -131,6 +140,18 @@ class DevicesFragment : ListFragment() {
                         .addToBackStack(null)
                         .commit()
                 }
+                if(savedOption != "None" && position == listItems.size - 1){
+                    val appInstance = requireActivity().application as OpenGammaKitApp
+                    if(!appInstance.isBootDone) {
+                        // last element processed
+                        appInstance.isBootDone = true
+                        when(savedOption) {
+                            "Counter" -> {counter.performClick()}
+                            "Spectrum" -> {spectrometer.performClick()}
+                            else -> {}
+                        }
+                    }
+                }
                 return view
             }
         }
@@ -156,7 +177,15 @@ class DevicesFragment : ListFragment() {
         btnIsotope.setOnClickListener {
             val fragment: Fragment = IsotopeListFragment()
             parentFragmentManager.beginTransaction()
-                .replace(R.id.fragment, fragment, "isotope_list")
+                .replace(R.id.fragment, fragment, "isotope_list_fragment")
+                .addToBackStack(null)
+                .commit()
+        }
+        val btnSettings = view.findViewById<ImageButton>(R.id.btnSettings)
+        btnSettings.setOnClickListener {
+            val fragment: Fragment = SettingsFragment()
+            parentFragmentManager.beginTransaction()
+                .replace(R.id.fragment, fragment, "app_settings_fragment")
                 .addToBackStack(null)
                 .commit()
         }

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp">
+
+    <!-- Label for the setting -->
+    <TextView
+        android:id="@+id/labelOpenWhenBoot"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Open when boot:"
+        android:textSize="16sp"
+        android:textColor="@color/colorPrimaryText"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <!-- Explanation text -->
+    <TextView
+        android:id="@+id/explanationOpenWhenBoot"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="Set the app to automatically open the specified mode when a device is connected."
+        android:textSize="14sp"
+        android:textColor="@color/colorPrimaryText"
+        app:layout_constraintTop_toBottomOf="@id/labelOpenWhenBoot"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="8dp" />
+
+    <!-- Dropdown/Spinner -->
+    <Spinner
+        android:id="@+id/spinnerOpenWhenBoot"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        app:layout_constraintTop_toBottomOf="@id/explanationOpenWhenBoot"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="16dp" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>
