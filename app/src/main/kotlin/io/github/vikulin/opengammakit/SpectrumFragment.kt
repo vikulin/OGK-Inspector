@@ -188,8 +188,7 @@ class SpectrumFragment : SerialConnectionFragment(),
                         openGammaKitData.data[0].resultData.energySpectrum.validPulseCount
                     val spectrum =
                         openGammaKitData.data[0].resultData.energySpectrum.spectrum
-                    val measureTime = openGammaKitData.data[0].resultData.energySpectrum.measurementTime
-                    measureTimer.base = SystemClock.elapsedRealtime() - measureTime*1000
+                    val measureTime = openGammaKitData.data[0].resultData.energySpectrum.measurementTime * 1000
                     val entriesArray = spectrum.mapIndexed { index, entry ->
                         floatArrayOf(index.toFloat(), entry.toFloat()) // Create a float array for each entry
                     }.toTypedArray() // Convert the List<float[]> to float[][]
