@@ -237,19 +237,34 @@ class SpectrumFragment : SerialConnectionFragment(),
         }
 
         btnLive.setOnClickListener {
-            measureMode = SpectrumMeasureMode.Live
-            // **Reset & Start Chronometer**
-            measureTimer.base = SystemClock.elapsedRealtime() // Reset timer initially
-            measureTimer.start()
-            val resetCommand = OpenGammaKitCommands().resetSpectrum().toByteArray()
-            super.send(resetCommand)
-            val spectrumCommand = OpenGammaKitCommands().setOut("spectrum").toByteArray()
-            super.send(spectrumCommand)
+            val fileUri = arguments?.getString("file_spectrum_uri")?.toUri()
+            fileUri?.let { uri ->
+                val error = "Live mode isn't allowed"
+                val errorDialog = ErrorDialogFragment.Companion.newInstance(error)
+                errorDialog.show(childFragmentManager, "error_dialog_fragment")
+            }?: run {
+                measureMode = SpectrumMeasureMode.Live
+                // **Reset & Start Chronometer**
+                measureTimer.base = SystemClock.elapsedRealtime() // Reset timer initially
+                measureTimer.start()
+                val resetCommand = OpenGammaKitCommands().resetSpectrum().toByteArray()
+                super.send(resetCommand)
+                val spectrumCommand = OpenGammaKitCommands().setOut("spectrum").toByteArray()
+                super.send(spectrumCommand)
+            }
         }
 
         btnSchedule.setOnClickListener {
-            val spectrumRecordingTimeDialog = SpectrumRecordingTimeDialogFragment.newInstance(60)
-            spectrumRecordingTimeDialog.show(childFragmentManager, "spectrum_recording_time")
+            val fileUri = arguments?.getString("file_spectrum_uri")?.toUri()
+            fileUri?.let { uri ->
+                val error = "Scheduled mode isn't allowed"
+                val errorDialog = ErrorDialogFragment.Companion.newInstance(error)
+                errorDialog.show(childFragmentManager, "error_dialog_fragment")
+            }?: run {
+                val spectrumRecordingTimeDialog =
+                    SpectrumRecordingTimeDialogFragment.newInstance(60)
+                spectrumRecordingTimeDialog.show(childFragmentManager, "spectrum_recording_time")
+            }
         }
 
         btnScreenshot.setOnClickListener {
@@ -583,7 +598,7 @@ class SpectrumFragment : SerialConnectionFragment(),
     override fun receive(bytes: ByteArray) {
         if (bytes.isNotEmpty()) {
             val inputString = bytes.toString(Charsets.UTF_8)
-            Log.d("Test", ": $inputString")
+            //Log.d("Test", ": $inputString")
             val EOF = '\u0000'
             for (char in inputString) {
                 when (measureMode) {

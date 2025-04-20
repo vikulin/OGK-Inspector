@@ -15,18 +15,16 @@ import android.widget.ImageButton
 import android.widget.ListView
 import android.widget.TextView
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.FragmentManager
 import androidx.fragment.app.ListFragment
 import com.hoho.android.usbserial.driver.UsbSerialDriver
-import com.hoho.android.usbserial.driver.UsbSerialProber
 import io.github.vikulin.opengammakit.CounterFragment
-import io.github.vikulin.opengammakit.CustomProber
 import io.github.vikulin.opengammakit.InfoFragment
 import io.github.vikulin.opengammakit.OpenGammaKitApp
 import io.github.vikulin.opengammakit.R
 import io.github.vikulin.opengammakit.SettingsFragment
 import io.github.vikulin.opengammakit.SpectrumFragment
 import io.github.vikulin.opengammakit.TerminalFragment
+import io.github.vikulin.opengammakit.hardware.usb.UsbDeviceManager
 import io.github.vikulin.opengammakit.view.IsotopeListFragment
 import io.github.vikulin.opengammakit.view.SpectrumFileChooserDialogFragment
 import java.util.Locale
@@ -63,6 +61,7 @@ class DevicesFragment : ListFragment() {
                 val terminal = view.findViewById<ImageButton>(R.id.terminal)
                 val spectrometer = view.findViewById<ImageButton>(R.id.spectrometer)
                 val counter = view.findViewById<ImageButton>(R.id.counter)
+
                 val driver = when {
                     item.driver == null -> "<no driver>"
                     item.driver.ports.size == 1 -> item.driver.javaClass.simpleName.replace("SerialDriver", "")
@@ -204,25 +203,8 @@ class DevicesFragment : ListFragment() {
     }
 
     private fun refresh() {
-        val usbManager = requireActivity().getSystemService(Context.USB_SERVICE) as UsbManager
-        val usbDefaultProber = UsbSerialProber.getDefaultProber()
-        val usbCustomProber = CustomProber.getCustomProber()
         listItems.clear()
-        for (device in usbManager.deviceList.values) {
-            var driver = usbDefaultProber.probeDevice(device)
-            if (driver == null) {
-                driver = usbCustomProber.probeDevice(device)
-            }
-            if (driver != null) {
-                for (port in 0 until driver.ports.size) {
-                    listItems.add(ListItem(device, port, driver))
-                }
-            }
-            // skip not connected ports in USB Hubs
-            //else {
-            //    listItems.add(ListItem(device, 0, null))
-            //}
-        }
+        UsbDeviceManager.setUsbDevices(requireActivity(), listItems)
         listAdapter.notifyDataSetChanged()
     }
 
