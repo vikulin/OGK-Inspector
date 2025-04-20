@@ -187,53 +187,13 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
-        <!-- Channels -->
-
+        <!-- Measure Time -->
         <TextView
-            android:text="Channels"
-            android:textSize="11sp"
-            android:textColor="@color/colorPrimaryText"
-            android:fontFamily="monospace"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="10dp" />
-
-        <TextView
-            android:id="@+id/channels"
+            android:id="@+id/remainingTime"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textColor="@color/colorPrimaryText"
             android:text=""
-            android:textSize="11sp"
-            android:fontFamily="monospace"
-            android:layout_marginEnd="11dp" />
-
-        <!-- Counts & Pulse Count -->
-        <TextView
-            android:text="Counts"
-            android:textSize="11sp"
-            android:textColor="@color/colorPrimaryText"
-            android:fontFamily="monospace"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="10dp" />
-
-        <TextView
-            android:id="@+id/pulseCountValue"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textColor="@color/colorPrimaryText"
-            android:text="0"
-            android:textSize="11sp"
-            android:fontFamily="monospace"
-            android:layout_marginEnd="16dp" />
-
-        <!-- Measure Time -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textColor="@color/colorPrimaryText"
-            android:text="Measure Time"
             android:textSize="11sp"
             android:fontFamily="monospace"
             android:layout_marginEnd="10dp"/>
@@ -244,7 +204,8 @@
             android:layout_height="wrap_content"
             android:textColor="@color/colorPrimaryText"
             android:textSize="11sp"
-            android:fontFamily="monospace"/>
+            android:fontFamily="monospace"
+            android:visibility="gone"/>
     </com.google.android.flexbox.FlexboxLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
