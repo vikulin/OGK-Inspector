@@ -19,7 +19,7 @@ class IsotopeAdapter(private var isotopes: List<Isotope>) :
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): IsotopeViewHolder {
         val view = LayoutInflater.from(parent.context)
-            .inflate(R.layout.isotope_item, parent, false)
+            .inflate(R.layout.item_isotope, parent, false)
         return IsotopeViewHolder(view)
     }
 

@@ -50,11 +50,11 @@ class DevicesFragment : ListFragment(), SpectrumFileChooserDialogFragment.Choose
         sharedPreferences = requireContext().getSharedPreferences("AppPreferences", 0)
         val savedOption = sharedPreferences.getString("open_when_boot", "None")
 
-        listAdapter = object : ArrayAdapter<ListItem>(requireActivity(), R.layout.device_list_item, listItems) {
+        listAdapter = object : ArrayAdapter<ListItem>(requireActivity(), R.layout.item_device, listItems) {
 
             override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
                 val item = listItems[position]
-                val view = convertView ?: layoutInflater.inflate(R.layout.device_list_item, parent, false)
+                val view = convertView ?: layoutInflater.inflate(R.layout.item_device, parent, false)
                 val deviceLabel = view.findViewById<TextView>(R.id.deviceLabel)
                 val usbPort = view.findViewById<TextView>(R.id.usbPort)
                 val info = view.findViewById<ImageButton>(R.id.info)

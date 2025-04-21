@@ -1,6 +1,5 @@
 package io.github.vikulin.opengammakit.adapter
 
-import android.content.Context
 import android.content.res.ColorStateList
 import android.view.LayoutInflater
 import android.view.View
@@ -13,11 +12,11 @@ import io.github.vikulin.opengammakit.SpectrumFragment
 import io.github.vikulin.opengammakit.model.GammaKitEntry
 import io.github.vikulin.opengammakit.view.FwhmSpectrumSelectionDialogFragment
 
-class SpectrumAdapter(
+class SpectrumFwhmSelectAdapter(
     private val dialog: FwhmSpectrumSelectionDialogFragment,
     private val spectrumData: List<GammaKitEntry>,
     private val onItemSelected: FwhmSpectrumSelectionDialogFragment.ChooseSpectrumDialogListener?
-) : RecyclerView.Adapter<SpectrumAdapter.SpectrumViewHolder>() {
+) : RecyclerView.Adapter<SpectrumFwhmSelectAdapter.SpectrumViewHolder>() {
 
     inner class SpectrumViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val colorIndicator: MaterialCardView = itemView.findViewById(R.id.colorIndicator)
@@ -38,7 +37,7 @@ class SpectrumAdapter(
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): SpectrumViewHolder {
-        val view = LayoutInflater.from(parent.context).inflate(R.layout.item_spectrum, parent, false)
+        val view = LayoutInflater.from(parent.context).inflate(R.layout.item_fwhm_spectrum, parent, false)
         return SpectrumViewHolder(view)
     }
 

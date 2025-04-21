@@ -11,10 +11,10 @@ import io.github.vikulin.opengammakit.R
 import io.github.vikulin.opengammakit.model.Isotope
 
 class IsotopeSelectAdapter(context: Context, private val isotopes: List<Isotope>) :
-    ArrayAdapter<Isotope>(context, R.layout.dropdown_item, isotopes) {
+    ArrayAdapter<Isotope>(context, R.layout.item_dropdown, isotopes) {
 
     override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
-        val view = convertView ?: LayoutInflater.from(context).inflate(R.layout.dropdown_item, parent, false)
+        val view = convertView ?: LayoutInflater.from(context).inflate(R.layout.item_dropdown, parent, false)
         val isotope = getItem(position)
 
         val textView = view.findViewById<TextView>(R.id.isotope) // Ensure reference exists in your layout

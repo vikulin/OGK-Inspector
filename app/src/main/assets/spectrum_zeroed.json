@@ -1,10 +1,10 @@
 {
-  "schemaVersion": "NPESv1",
+  "schemaVersion": "NPESv2",
   "data": [
     {
       "deviceData": {
-        "softwareName": "",
-        "deviceName": ""
+        "softwareName": "OGK Inspector v1.1.1",
+        "deviceName": "OpenGammaKit v0.1.1"
       },
       "resultData": {
         "energySpectrum": {

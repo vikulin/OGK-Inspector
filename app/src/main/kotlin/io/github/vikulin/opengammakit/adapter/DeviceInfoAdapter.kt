@@ -27,7 +27,7 @@ class DeviceInfoAdapter(
 
     override fun getView(position: Int, convertView: View?, parent: ViewGroup?): View {
         val view = convertView ?: LayoutInflater.from(context).inflate(
-            R.layout.info_list_item, parent, false
+            R.layout.item_info_list, parent, false
         )
 
         val keyText = view.findViewById<TextView>(R.id.keyText)

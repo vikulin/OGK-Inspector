@@ -61,6 +61,7 @@ import androidx.core.net.toUri
 import com.github.mikephil.charting.components.Legend
 import io.github.vikulin.opengammakit.model.GammaKitEntry
 import io.github.vikulin.opengammakit.view.FwhmSpectrumSelectionDialogFragment
+import io.github.vikulin.opengammakit.view.SaveSelectedSpectrumDialogFragment
 import io.github.vikulin.opengammakit.view.SpectrumFileChooserDialogFragment
 
 class SpectrumFragment : SerialConnectionFragment(),
@@ -68,7 +69,8 @@ class SpectrumFragment : SerialConnectionFragment(),
     CalibrationDialogFragment.CalibrationDialogListener,
     SpectrumRecordingTimeDialogFragment.ChooseSpectrumRecordingTimeDialogListener,
     FwhmSpectrumSelectionDialogFragment.ChooseSpectrumDialogListener,
-    SpectrumFileChooserDialogFragment.ChooseFileDialogListener{
+    SpectrumFileChooserDialogFragment.ChooseFileDialogListener,
+    SaveSelectedSpectrumDialogFragment.ChooseSpectrumDialogListener{
 
     private lateinit var spectrumChart: LineChart
     private lateinit var measureTimer: Chronometer
@@ -80,6 +82,7 @@ class SpectrumFragment : SerialConnectionFragment(),
     private lateinit var btnLive: ImageButton
     private lateinit var btnSchedule: ImageButton
     private lateinit var btnAddSpectrum: ImageButton
+    private lateinit var btnSaveSpectrum: ImageButton
     private lateinit var clockProgressView: ClockProgressView
     private lateinit var spectrumDataSet: OpenGammaKitData
     // Indicates which graph is currently active for measurements such as Calibration and FWHM
@@ -139,6 +142,7 @@ class SpectrumFragment : SerialConnectionFragment(),
         btnLive = view.findViewById(R.id.btnLive)
         btnSchedule = view.findViewById(R.id.btnSchedule)
         btnAddSpectrum = view.findViewById(R.id.btnAddSpectrumFile)
+        btnSaveSpectrum = view.findViewById(R.id.btnSaveSpectrumFile)
         clockProgressView = view.findViewById(R.id.clockProgressView)
 
         gestureDetector = GestureDetector(requireContext(), object : GestureDetector.SimpleOnGestureListener() {
@@ -286,6 +290,16 @@ class SpectrumFragment : SerialConnectionFragment(),
         btnAddSpectrum.setOnClickListener {
             val spectrumFileChooserDialog = SpectrumFileChooserDialogFragment()
             spectrumFileChooserDialog.show(childFragmentManager, "spectrum_file_chooser_dialog_fragment")
+        }
+
+        btnSaveSpectrum.setOnClickListener {
+            if(spectrumDataSet.data.size>1){
+                // show select spectrum to save into a file
+                val spectrumFileChooserDialog = SaveSelectedSpectrumDialogFragment.newInstance(spectrumDataSet)
+                spectrumFileChooserDialog.show(childFragmentManager, "save_spectrum_file_dialog_fragment")
+            } else {
+                saveGammaKitDataAsJson(requireContext(), spectrumDataSet)
+            }
         }
     }
 
@@ -1041,6 +1055,29 @@ class SpectrumFragment : SerialConnectionFragment(),
         }
     }
 
+    fun saveGammaKitDataAsJson(context: Context, gammaKitData: OpenGammaKitData) {
+        val jsonFileName = "gamma_data_${System.currentTimeMillis()}.json"
+
+        val contentValues = ContentValues().apply {
+            put(MediaStore.Files.FileColumns.DISPLAY_NAME, jsonFileName)
+            put(MediaStore.Files.FileColumns.MIME_TYPE, "application/json")
+            put(MediaStore.Files.FileColumns.RELATIVE_PATH, "Documents/OpenGammaKit/")
+        }
+
+        val contentResolver = context.contentResolver
+        val jsonUri = contentResolver.insert(MediaStore.Files.getContentUri("external"), contentValues)
+
+        if (jsonUri != null) {
+            contentResolver.openOutputStream(jsonUri)?.use { outputStream ->
+                val jsonString = Json.encodeToString(gammaKitData)
+                outputStream.write(jsonString.toByteArray())
+                Toast.makeText(context, "Data saved as JSON!", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            Toast.makeText(context, "Failed to save JSON!", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     fun shareChartScreenshot(context: Context, spectrumChart: View, tableContainer: View) {
         // Create a Bitmap including both spectrumChart and tableContainer
         val combinedHeight = spectrumChart.height + tableContainer.height
@@ -1323,6 +1360,24 @@ class SpectrumFragment : SerialConnectionFragment(),
         spectrumDataSet.data.addAll(openGammaKitData.data)
         updateChartSpectrumData()
     }
+
+    override fun onChooseMultiple(selectedIndexes: List<Int>) {
+        // Filter entries based on selected indexes
+        val selectedEntries = spectrumDataSet.data.filterIndexed { index, _ ->
+            index in selectedIndexes
+        }.toMutableList()
+
+        // Create a new OpenGammaKitData with the same schema version and filtered data
+        val filteredData = OpenGammaKitData(
+            schemaVersion = spectrumDataSet.schemaVersion,
+            data = selectedEntries
+        )
+
+        // Call save method with the filtered data
+        saveGammaKitDataAsJson(requireContext(), filteredData)
+    }
+
+
 
     companion object {
         fun getLineColor(context: Context, index: Int): Int {
