@@ -483,6 +483,7 @@ class SpectrumFragment : SerialConnectionFragment(),
                 horizontalAlignment = Legend.LegendHorizontalAlignment.LEFT
                 orientation = Legend.LegendOrientation.HORIZONTAL
                 setDrawInside(false)
+                xEntrySpace = 20f
             }
             invalidate()
         }
@@ -529,6 +530,7 @@ class SpectrumFragment : SerialConnectionFragment(),
             horizontalAlignment = Legend.LegendHorizontalAlignment.LEFT
             orientation = Legend.LegendOrientation.HORIZONTAL
             setDrawInside(false)
+            xEntrySpace = 20f
         }
 
         spectrumChart.data.notifyDataChanged()
@@ -629,6 +631,7 @@ class SpectrumFragment : SerialConnectionFragment(),
                 horizontalAlignment = Legend.LegendHorizontalAlignment.LEFT
                 orientation = Legend.LegendOrientation.HORIZONTAL
                 setDrawInside(false)
+                xEntrySpace = 20f
             }
             invalidate()
         }
