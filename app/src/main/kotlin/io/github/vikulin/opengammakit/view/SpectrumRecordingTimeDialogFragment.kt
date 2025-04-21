@@ -97,10 +97,10 @@ class SpectrumRecordingTimeDialogFragment() : DialogFragment() {
         return view
     }
 
-    private fun convertFieldsToRecordingTime(): Int {
-        val hours = editHours.text.toString().toIntOrNull() ?: 0
-        val minutes = editMinutes.text.toString().toIntOrNull() ?: 0
-        val seconds = editSeconds.text.toString().toIntOrNull() ?: 0
+    private fun convertFieldsToRecordingTime(): Long {
+        val hours = editHours.text.toString().toLongOrNull() ?: 0
+        val minutes = editMinutes.text.toString().toLongOrNull() ?: 0
+        val seconds = editSeconds.text.toString().toLongOrNull() ?: 0
 
         return (hours * 3600) + (minutes * 60) + seconds
     }
@@ -138,7 +138,7 @@ class SpectrumRecordingTimeDialogFragment() : DialogFragment() {
 
     // Define the callback interface
     interface ChooseSpectrumRecordingTimeDialogListener {
-        fun onSpectrumRecordingTime(time: Int)
+        fun onSpectrumRecordingTime(time: Long)
     }
 
     private var chooseSpectrumRecordingTime: ChooseSpectrumRecordingTimeDialogListener? = null

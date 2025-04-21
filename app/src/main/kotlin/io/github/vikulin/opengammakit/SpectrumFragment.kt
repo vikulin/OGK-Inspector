@@ -58,24 +58,35 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 import kotlin.text.iterator
 import androidx.core.net.toUri
+import io.github.vikulin.opengammakit.model.GammaKitEntry
+import io.github.vikulin.opengammakit.view.FwhmSpectrumSelectionDialogFragment
+import io.github.vikulin.opengammakit.view.SpectrumFileChooserDialogFragment
 
 class SpectrumFragment : SerialConnectionFragment(),
     CalibrationUpdateOrRemoveDialogFragment.CalibrationDialogListener,
     CalibrationDialogFragment.CalibrationDialogListener,
-    SpectrumRecordingTimeDialogFragment.ChooseSpectrumRecordingTimeDialogListener{
+    SpectrumRecordingTimeDialogFragment.ChooseSpectrumRecordingTimeDialogListener,
+    FwhmSpectrumSelectionDialogFragment.ChooseSpectrumDialogListener,
+    SpectrumFileChooserDialogFragment.ChooseFileDialogListener{
 
     private lateinit var spectrumChart: LineChart
-    private lateinit var channelsValue: TextView
-    private lateinit var pulseCountValue: TextView
     private lateinit var measureTimer: Chronometer
+    private lateinit var elapsedTime: TextView
     private lateinit var btnCalibration: ImageButton
     private lateinit var btnFwhm: ImageButton
     private lateinit var btnScreenshot: ImageButton
     private lateinit var btnShare: ImageButton
     private lateinit var btnLive: ImageButton
     private lateinit var btnSchedule: ImageButton
+    private lateinit var btnAddSpectrum: ImageButton
     private lateinit var clockProgressView: ClockProgressView
-    private lateinit var spectrumDataSet: LineDataSet
+    private lateinit var spectrumDataSet: OpenGammaKitData
+    // Indicates which graph is currently active for measurements such as Calibration and FWHM
+    private var selectedCalibrationMeasurementIndex = 0
+    private var selectedFwhmMeasurementIndex = 0
+    // This index is always 0 indicates which position the device spectrum writes to
+    private val deviceSpectrumIndex = 0
+
     private var pauseOffset: Long = 0
     private var verticalLimitLine: LimitLine? = null
     private var horizontalLimitLine: LimitLine? = null
@@ -118,15 +129,15 @@ class SpectrumFragment : SerialConnectionFragment(),
         super.onViewCreated(view, savedInstanceState)
 
         spectrumChart = view.findViewById(R.id.spectrumChart)
-        channelsValue = view.findViewById(R.id.channels)
-        pulseCountValue = view.findViewById(R.id.pulseCountValue)
         measureTimer = view.findViewById(R.id.measureTimer)
+        elapsedTime = view.findViewById(R.id.remainingTime)
         btnCalibration = view.findViewById(R.id.btnCalibration)
         btnFwhm = view.findViewById(R.id.btnFwhm)
         btnScreenshot = view.findViewById(R.id.btnScreenshot)
         btnShare = view.findViewById(R.id.btnShare)
         btnLive = view.findViewById(R.id.btnLive)
         btnSchedule = view.findViewById(R.id.btnSchedule)
+        btnAddSpectrum = view.findViewById(R.id.btnAddSpectrumFile)
         clockProgressView = view.findViewById(R.id.clockProgressView)
 
         gestureDetector = GestureDetector(requireContext(), object : GestureDetector.SimpleOnGestureListener() {
@@ -145,7 +156,7 @@ class SpectrumFragment : SerialConnectionFragment(),
                     }
                     SpectrumMeasureMode.Calibration -> {
                         spectrumChart.marker = null
-                        val closestEntry = getValuesByTouchPoint(e.x)
+                        val closestEntry = getValuesByTouchPoint(selectedCalibrationMeasurementIndex, e.x)
                         if (closestEntry != null) {
                             val pickX = closestEntry.x
                             // Check if peakChannel already exists in the list
@@ -177,33 +188,22 @@ class SpectrumFragment : SerialConnectionFragment(),
                 try {
                     // Handle the Uri (e.g., read and parse the file)
                     measureMode = SpectrumMeasureMode.ReadSpectrumFromFile
-                    val openGammaKitData = readAndParseFile(requireContext(), uri)
+                    val spectrumDataSet = readAndParseFile(requireContext(), uri)
+                    // Initializing and populating data
+                    this@SpectrumFragment.spectrumDataSet = spectrumDataSet
                     Log.d(
                         "Test",
-                        "Parsed input file $uri. Data spectrum size: ${openGammaKitData.data.size}"
+                        "Parsed input file $uri. Spectrum number: ${spectrumDataSet.data.size}"
                     )
 
-                    // Process file data here
-                    val counts =
-                        openGammaKitData.data[0].resultData.energySpectrum.validPulseCount
-                    val spectrum =
-                        openGammaKitData.data[0].resultData.energySpectrum.spectrum
-                    val measureTime = openGammaKitData.data[0].resultData.energySpectrum.measurementTime * 1000
-                    val entriesArray = spectrum.mapIndexed { index, entry ->
-                        floatArrayOf(index.toFloat(), entry.toFloat()) // Create a float array for each entry
-                    }.toTypedArray() // Convert the List<float[]> to float[][]
-
                     val outState = Bundle()
-                    outState.putSerializable("GRAPH_ENTRIES", entriesArray)
+                    outState.putSerializable("GRAPH_ENTRIES", this@SpectrumFragment.spectrumDataSet)
                     // Save the elapsed time for the Chronometer
-                    outState.putLong("chronometer_elapsed_time", measureTime)
+                    //outState.putLong("chronometer_elapsed_time", measureTime)
                     // Save measureMode state if needed
                     outState.putString("measure_mode", measureMode.name)
                     initChart(outState)
                     setupChart()
-                    updateChartSpectrumData(spectrum)
-                    updateCounts(counts)
-                    updateChannels(openGammaKitData.data[0].resultData.energySpectrum.numberOfChannels)
                 } catch (e: Exception){
                     e.printStackTrace()
                     val error = e.message.toString()
@@ -218,7 +218,7 @@ class SpectrumFragment : SerialConnectionFragment(),
 
         initCalibration(savedInstanceState)
 
-        updateChartWithCombinedXAxis()
+        updateChartWithCombinedXAxis(selectedCalibrationMeasurementIndex)
 
         showCalibrationLimitLines()
 
@@ -230,10 +230,16 @@ class SpectrumFragment : SerialConnectionFragment(),
         }
 
         btnFwhm.setOnClickListener {
-            measureMode = SpectrumMeasureMode.Fwhm
-            measureTimer.stop()
-            val spectrumCommand = OpenGammaKitCommands().setOut("off").toByteArray()
-            super.send(spectrumCommand)
+            if(spectrumDataSet.data.size>1){
+                // show graph selection dialog for FWhm measurement
+                val selectSpectrumDialog = FwhmSpectrumSelectionDialogFragment.Companion.newInstance(spectrumDataSet)
+                selectSpectrumDialog.show(childFragmentManager, "select_spectrum_dialog_fragment")
+            } else {
+                measureMode = SpectrumMeasureMode.Fwhm
+                measureTimer.stop()
+                val spectrumCommand = OpenGammaKitCommands().setOut("off").toByteArray()
+                super.send(spectrumCommand)
+            }
         }
 
         btnLive.setOnClickListener {
@@ -244,6 +250,7 @@ class SpectrumFragment : SerialConnectionFragment(),
                 errorDialog.show(childFragmentManager, "error_dialog_fragment")
             }?: run {
                 measureMode = SpectrumMeasureMode.Live
+                elapsedTime.text = ""
                 // **Reset & Start Chronometer**
                 measureTimer.base = SystemClock.elapsedRealtime() // Reset timer initially
                 measureTimer.start()
@@ -274,26 +281,36 @@ class SpectrumFragment : SerialConnectionFragment(),
         btnShare.setOnClickListener {
             shareChartScreenshot(requireContext(), spectrumChart, view.findViewById(R.id.tableContainer))
         }
+
+        btnAddSpectrum.setOnClickListener {
+            val spectrumFileChooserDialog = SpectrumFileChooserDialogFragment()
+            spectrumFileChooserDialog.show(childFragmentManager, "spectrum_file_chooser_dialog_fragment")
+        }
     }
 
-    private fun updateRecordingProgress(progress: Float) {
+    private fun updateRecordingProgress(progress: Float, remainingSeconds: Long) {
         when {
             progress <= 0f -> {
                 btnSchedule.alpha = 0.5f
                 clockProgressView.setProgress(0f)
+                elapsedTime.text = ""
             }
             progress in 0.01f..99.99f -> {
                 btnSchedule.alpha = 0.5f
                 clockProgressView.setProgress(progress)
+                // Update the remaining time TextView
+                val remainingTime = formatTimeSkipZeros(remainingSeconds)
+                elapsedTime.text = "$remainingTime left"
             }
             progress >= 100f -> {
                 btnSchedule.alpha = 1f
                 clockProgressView.setProgress(0f)
+                elapsedTime.text = ""
             }
         }
     }
 
-    private fun startProgressUpdate(durationSeconds: Int) {
+    private fun startProgressUpdate(durationSeconds: Long) {
         val handler = Handler(Looper.getMainLooper())
         val totalSteps = durationSeconds * 20
         var step = 0
@@ -302,13 +319,15 @@ class SpectrumFragment : SerialConnectionFragment(),
             override fun run() {
                 if (step <= totalSteps) {
                     val progress = (step.toFloat() / totalSteps) * 100f
-                    updateRecordingProgress(progress)
+                    val remainingSeconds = durationSeconds - (step / 20) // Convert steps back to seconds
+
+                    updateRecordingProgress(progress, remainingSeconds)
+
                     step++
                     handler.postDelayed(this, 50L)
                 }
             }
         }
-
         handler.post(runnable)
     }
 
@@ -332,7 +351,7 @@ class SpectrumFragment : SerialConnectionFragment(),
     override fun onConnectionSuccess() {
         super.onConnectionSuccess()
         loadCalibrationData()
-        updateChartWithCombinedXAxis()
+        updateChartWithCombinedXAxis(selectedCalibrationMeasurementIndex)
         showCalibrationLimitLines()
         super.setDtr(true)
         val command = OpenGammaKitCommands().setOut("spectrum").toByteArray()
@@ -347,29 +366,16 @@ class SpectrumFragment : SerialConnectionFragment(),
     private fun initChart(savedInstanceState: Bundle?) {
 
         // Restore graph data from savedInstanceState if available
-        val restoredEntries = savedInstanceState?.getSerializable("GRAPH_ENTRIES")?.let { data ->
-            val entriesArray = data as Array<FloatArray>
-            entriesArray.map { entryData ->
-                Entry(entryData[0], entryData[1]) // Create Entry objects
-            }
+        val restoredEntries: OpenGammaKitData = savedInstanceState?.getSerializable("GRAPH_ENTRIES")?.let { data ->
+            data as? OpenGammaKitData
         } ?: run {
+            // There is no initial data so it's starting from zeroed spectrum data
             // Load zeroed data if no saved state exists
-            val parsed = Json.decodeFromString<OpenGammaKitData>(zeroedData)
-            val spectrum = parsed.data.firstOrNull()?.resultData?.energySpectrum ?: return@run emptyList()
-
-            spectrum.spectrum.mapIndexed { index, count ->
-                Entry(index.toFloat(), count.toFloat())
-            }
+            Json.decodeFromString<OpenGammaKitData>(zeroedData)
         }
 
         // Initialize the dataset with restored or zeroed entries
-        spectrumDataSet = LineDataSet(restoredEntries, "Energy Spectrum").apply {
-            mode = LineDataSet.Mode.CUBIC_BEZIER
-            lineWidth = 1.5f
-            setDrawCircles(false)
-            setDrawValues(false)
-            color = resources.getColor(android.R.color.holo_blue_light, null)
-        }
+        spectrumDataSet = restoredEntries
         // Recover the elapsed time and restore the Chronometer
         savedInstanceState?.getLong("chronometer_elapsed_time", 0L)?.let {
             measureTimer.base = SystemClock.elapsedRealtime() - it
@@ -380,16 +386,15 @@ class SpectrumFragment : SerialConnectionFragment(),
         if(measureMode == SpectrumMeasureMode.Scheduled){
             measureTimer.start() // Resume the timer
         }
-
-        updateChannels(spectrumDataSet.entryCount)
+        selectedFwhmMeasurementIndex =
+            savedInstanceState?.getInt("selected_fwhm_measurement_index", 0) ?: run {
+                0
+            }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        val entriesArray = spectrumDataSet.values.map { entry ->
-            floatArrayOf(entry.x, entry.y)
-        }.toTypedArray()
-        outState.putSerializable("GRAPH_ENTRIES", entriesArray)
+        outState.putSerializable("GRAPH_ENTRIES", spectrumDataSet)
         // Convert the calibration data list to a List of CalibrationData instances
         val calibrationDataList = verticalCalibrationLineList.map {
             CalibrationData(
@@ -406,19 +411,54 @@ class SpectrumFragment : SerialConnectionFragment(),
 
         // Save measureMode state if needed
         outState.putString("measure_mode", measureMode.name)
+        outState.putInt("selected_fwhm_measurement_index", selectedFwhmMeasurementIndex)
+    }
 
+    fun formatTimeSkipZeros(seconds: Long): String {
+        val hours = seconds / 3600
+        val minutes = (seconds % 3600) / 60
+        val secs = seconds % 60
+
+        val components = mutableListOf<String>()
+        if (hours > 0) components.add("${hours}h")
+        if (minutes > 0) components.add("${minutes}m")
+        if (secs > 0) components.add("${secs}s")
+
+        return components.joinToString("")
+    }
+
+    private fun getSpectrumLabel(index: Int, entry: GammaKitEntry): String{
+        val ct = entry.resultData.energySpectrum.validPulseCount
+        val mt = entry.resultData.energySpectrum.measurementTime
+        val ch = entry.resultData.energySpectrum.numberOfChannels
+        val t = formatTimeSkipZeros(mt)
+        return (entry.deviceData.deviceName?:"Spectrum ${index + 1}")+" Channels $ch Counts $ct Time $t"
     }
 
     private fun setupChart() {
-
         val primaryColor = resources.getColor(R.color.colorPrimaryText, null)
 
+        // Create LineDataSets from each GammaKitEntry in spectrumDataSet
+        val dataSets = spectrumDataSet.data.mapIndexed { index, entry ->
+            val spectrum = entry.resultData.energySpectrum.spectrum
+            val entries = spectrum.mapIndexed { ch, count ->
+                Entry(ch.toFloat(), count.toFloat())
+            }
+            val label = getSpectrumLabel(index, entry)
+            LineDataSet(entries, label).apply {
+                mode = LineDataSet.Mode.CUBIC_BEZIER
+                lineWidth = 1.5f
+                setDrawCircles(false)
+                setDrawValues(false)
+                color = getLineColor(requireContext(), index)
+            }
+        }
+
+        // Set up chart
         spectrumChart.apply {
-            data = LineData(spectrumDataSet)
+            data = LineData(dataSets)
             xAxis.apply {
                 labelRotationAngle = 0f
-                position = XAxis.XAxisPosition.BOTTOM
-                textColor = primaryColor
                 position = XAxis.XAxisPosition.BOTTOM
                 textColor = primaryColor
                 valueFormatter = object : ValueFormatter() {
@@ -449,126 +489,123 @@ class SpectrumFragment : SerialConnectionFragment(),
         }
     }
 
-    private fun updateChartSpectrumData(parsed: List<Long>) {
+    private fun updateChartSpectrumData() {
 
-        val entries = parsed.mapIndexed { index, count ->
-            Entry(index.toFloat(), count.toFloat())
+        val dataSets = spectrumDataSet.data.mapIndexed { index, entry ->
+            val spectrum = entry.resultData.energySpectrum.spectrum
+            val entries = spectrum.mapIndexed { ch, count ->
+                Entry(ch.toFloat(), count.toFloat())
+            }
+            val label = getSpectrumLabel(index, entry)
+            LineDataSet(entries, label).apply {
+                mode = LineDataSet.Mode.CUBIC_BEZIER
+                lineWidth = 1.5f
+                setDrawCircles(false)
+                setDrawValues(false)
+                color = getLineColor(requireContext(), index)
+            }
         }
 
-        spectrumDataSet.let {
-            it.values = entries
-            spectrumChart.data.notifyDataChanged()
-            spectrumChart.notifyDataSetChanged()
-            spectrumChart.invalidate()
+        // Set up chart
+        spectrumChart.apply {
+            data = LineData(dataSets)
         }
+
+        spectrumChart.data.notifyDataChanged()
+        spectrumChart.notifyDataSetChanged()
+        spectrumChart.invalidate()
     }
 
-    private fun updateChartWithCombinedXAxis() {
-        // Ensure calibration data exists
+    private fun updateChartWithCombinedXAxis(selectedIndex: Int) {
         if (verticalCalibrationLineList.size < 2) {
             println("Insufficient calibration data!")
             return
         }
 
-        // Sort the calibration list by channel
+        // Sort calibration lines
         val sortedCalibrationList = verticalCalibrationLineList.sortedBy { it.second.first }
 
-        // Interpolation function to compute energy for a given channel
         fun interpolateEnergy(channel: Double): Double {
-            if (channel <= sortedCalibrationList.first().second.first) {
-                // Extrapolate for channels below the first calibration point
-                val firstPoint = sortedCalibrationList.first()
-                val secondPoint = sortedCalibrationList[1]
-                val ratio = (channel - firstPoint.second.first) / (secondPoint.second.first - firstPoint.second.first)
-                return firstPoint.second.second.energy.toFloat() + ratio * (secondPoint.second.second.energy.toFloat() - firstPoint.second.second.energy.toFloat())
-            } else if (channel >= sortedCalibrationList.last().second.first) {
-                // Extrapolate for channels above the last calibration point
-                val lastPoint = sortedCalibrationList.last()
-                val secondLastPoint = sortedCalibrationList[sortedCalibrationList.size - 2]
-                val ratio = (channel - secondLastPoint.second.first) / (lastPoint.second.first - secondLastPoint.second.first)
-                return secondLastPoint.second.second.energy.toFloat() + ratio * (lastPoint.second.second.energy.toFloat() - secondLastPoint.second.second.energy.toFloat())
-            } else {
-                // Interpolate for channels within the calibration range
-                for (i in 0 until sortedCalibrationList.size - 1) {
-                    val point1 = sortedCalibrationList[i]
-                    val point2 = sortedCalibrationList[i + 1]
-                    if (channel >= point1.second.first && channel <= point2.second.first) {
-                        val ratio = (channel - point1.second.first) / (point2.second.first - point1.second.first)
-                        return point1.second.second.energy.toFloat() + ratio * (point2.second.second.energy.toFloat() - point1.second.second.energy.toFloat())
+            return when {
+                channel <= sortedCalibrationList.first().second.first -> {
+                    val (c1, e1) = sortedCalibrationList.first().second
+                    val (c2, e2) = sortedCalibrationList[1].second
+                    val ratio = (channel - c1) / (c2 - c1)
+                    e1.energy + ratio * (e2.energy - e1.energy)
+                }
+
+                channel >= sortedCalibrationList.last().second.first -> {
+                    val (c1, e1) = sortedCalibrationList[sortedCalibrationList.size - 2].second
+                    val (c2, e2) = sortedCalibrationList.last().second
+                    val ratio = (channel - c1) / (c2 - c1)
+                    e1.energy + ratio * (e2.energy - e1.energy)
+                }
+
+                else -> {
+                    for (i in 0 until sortedCalibrationList.size - 1) {
+                        val (c1, e1) = sortedCalibrationList[i].second
+                        val (c2, e2) = sortedCalibrationList[i + 1].second
+                        if (channel in c1..c2) {
+                            val ratio = (channel - c1) / (c2 - c1)
+                            return e1.energy + ratio * (e2.energy - e1.energy)
+                        }
                     }
+                    channel // fallback
                 }
             }
-            return channel // Default fallback (shouldn't be reached)
         }
 
-        // Transform the spectrum data to use energy values
-        val energyEntries = if(spectrumDataSet.values.isEmpty()){
-            val spectrum = Json.decodeFromString<OpenGammaKitData>(zeroedData).data.firstOrNull()?.resultData?.energySpectrum ?: return
-            spectrum.spectrum.mapIndexed { index, zero ->
-                val energy = interpolateEnergy(index.toDouble())
-                Entry(energy.toFloat(), zero.toFloat())
-            }
-        } else {
-            spectrumDataSet.values.mapIndexed { index, count ->
-                val energy = interpolateEnergy(index.toDouble())
-                Entry(energy.toFloat(), count.y)
-            }
-        }
+        // Get the selected spectrum
+        val selectedSpectrum = spectrumDataSet.data.getOrNull(selectedIndex)?.resultData?.energySpectrum
+            ?: Json.decodeFromString<OpenGammaKitData>(zeroedData).data.firstOrNull()?.resultData?.energySpectrum
+            ?: return
 
-        spectrumDataSet = LineDataSet(energyEntries, "Energy Spectrum").apply {
+        // Interpolate channel -> energy and create entries
+        val energyEntries = selectedSpectrum.spectrum.mapIndexed { index, count ->
+            val energy = interpolateEnergy(index.toDouble())
+            Entry(energy.toFloat(), count.toFloat())
+        }
+        val label = getSpectrumLabel(selectedIndex, spectrumDataSet.data[selectedIndex])
+        val calibratedDataSet = LineDataSet(energyEntries, label).apply {
             mode = LineDataSet.Mode.CUBIC_BEZIER
             lineWidth = 1.5f
             setDrawCircles(false)
             setDrawValues(false)
-            color = resources.getColor(android.R.color.holo_blue_light, null)
+            color = getLineColor(requireContext(), selectedIndex)
         }
 
-        val primaryColor = resources.getColor(R.color.colorPrimaryText, null)
-
-        // Add a dummy dataset for calibration lines (to appear in the legend)
         val calibrationLegendDataSet = LineDataSet(listOf(Entry(0f, 0f)), "Calibration Points").apply {
-            color = Color.MAGENTA // Use the calibration line color
+            color = Color.MAGENTA
             lineWidth = 2f
             setDrawValues(false)
             setDrawCircles(false)
         }
 
-        // Update the chart
-        spectrumChart.apply {
-            data = LineData(spectrumDataSet, calibrationLegendDataSet)
+        val primaryColor = resources.getColor(R.color.colorPrimaryText, null)
 
-            // Combine Channel and Energy values in x-axis labels
+        spectrumChart.apply {
+            data = LineData(calibratedDataSet, calibrationLegendDataSet)
             xAxis.apply {
                 position = XAxis.XAxisPosition.BOTTOM
                 textColor = primaryColor
                 valueFormatter = object : ValueFormatter() {
                     override fun getAxisLabel(value: Float, axis: AxisBase?): String {
                         val energy = interpolateEnergy(value.toDouble())
-                        return "%.1f keV".format(energy) // Combine labels with newline
+                        return "%.1f keV".format(energy)
                     }
                 }
             }
             axisLeft.textColor = primaryColor
-            // Set the description and refresh the chart
             description = Description().apply {
                 text = "Counts vs Energy"
                 textColor = primaryColor
             }
             legend.textColor = primaryColor
-            invalidate() // Refresh the chart to apply changes
+            invalidate()
         }
-        //this code corrects calibration and axis data after screen rotation
-        updateChartSpectrumData(spectrumDataSet.values.map {
-            it.y.toLong()
-        })
-    }
 
-    private fun updateCounts(counts: Long){
-        pulseCountValue.text = counts.toString()
-    }
-
-    private fun updateChannels(channels: Int){
-        this@SpectrumFragment.channelsValue.text = channels.toString()
+        // Update entries after axis transformation
+        updateChartSpectrumData()
     }
 
     override fun read() {
@@ -629,9 +666,17 @@ class SpectrumFragment : SerialConnectionFragment(),
                                     "Test",
                                     "Spectrum size: ${spectrum.size}, counts: $counts"
                                 )
-                                updateChartSpectrumData(spectrum)
-                                updateCounts(counts)
-                                updateChannels(spectrum.size)
+                                spectrumDataSet.data[deviceSpectrumIndex].
+                                resultData.energySpectrum.spectrum = spectrum
+                                spectrumDataSet.data[deviceSpectrumIndex].
+                                resultData.energySpectrum.validPulseCount =
+                                    spectrum.fold(0L) { acc, num -> acc + num }
+                                spectrumDataSet.data[deviceSpectrumIndex].
+                                resultData.energySpectrum.numberOfChannels = spectrum.size
+                                spectrumDataSet.data[deviceSpectrumIndex].
+                                resultData.energySpectrum.measurementTime =
+                                    (SystemClock.elapsedRealtime() - measureTimer.base)/1000
+                                updateChartSpectrumData()
                             } catch (e: Exception) {
                                 Log.e("Test", "Failed to parse data: ${e.message}")
                                 Log.d("Test", buffer.toString())
@@ -665,16 +710,10 @@ class SpectrumFragment : SerialConnectionFragment(),
                                         json.decodeFromString<OpenGammaKitData>(buffer.toString())
                                     Log.d(
                                         "Test",
-                                        "Parsed scheduled data spectrum size: ${openGammaKitData.data.size}"
+                                        "Parsed scheduled spectrum number: ${openGammaKitData.data.size}"
                                     )
-                                    // Process scheduled data here
-                                    val counts =
-                                        openGammaKitData.data[0].resultData.energySpectrum.validPulseCount
-                                    val spectrum =
-                                        openGammaKitData.data[0].resultData.energySpectrum.spectrum
-                                    updateChartSpectrumData(spectrum)
-                                    updateCounts(counts)
-                                    updateChannels(openGammaKitData.data[0].resultData.energySpectrum.numberOfChannels)
+                                    spectrumDataSet.data[deviceSpectrumIndex] = openGammaKitData.data[deviceSpectrumIndex]
+                                    updateChartSpectrumData()
                                 } catch (e: Exception) {
                                     Log.e("Test", "Failed to parse data: ${e.message}")
                                     Log.d("Test", buffer.toString())
@@ -751,7 +790,7 @@ class SpectrumFragment : SerialConnectionFragment(),
     }
 
     private fun showPeakResolution(tapX: Float) {
-        val closestEntry = getValuesByTouchPoint(tapX)
+        val closestEntry = getValuesByTouchPoint(selectedFwhmMeasurementIndex, tapX)
         if (closestEntry != null) {
             val pickX = closestEntry.x
             val pickY = closestEntry.y
@@ -768,16 +807,16 @@ class SpectrumFragment : SerialConnectionFragment(),
             val marker = spectrumChart.marker as? ResolutionMarkerView
             marker?.apply {
                 setResolution(resolutionRate, primaryColor)
-                refreshContent(Entry(pickX, halfHeight), Highlight(pickX, halfHeight, 0))
+                refreshContent(Entry(pickX, halfHeight), Highlight(pickX, halfHeight, selectedFwhmMeasurementIndex))
             }
 
-            spectrumChart.highlightValue(Highlight(pickX, halfHeight, 0)) // triggers marker display
+            spectrumChart.highlightValue(Highlight(pickX, halfHeight, selectedFwhmMeasurementIndex)) // triggers marker display
 
         }
     }
 
-    private fun getClosestEntryToX(xVal: Double): Entry? {
-        val dataSet = spectrumChart.data.getDataSetByIndex(0)
+    private fun getClosestEntryToX(selectedIndex: Int, xVal: Double): Entry? {
+        val dataSet = spectrumChart.data.getDataSetByIndex(selectedIndex)
         var closestEntry: Entry? = null
         var minDiff = Double.MAX_VALUE
 
@@ -888,7 +927,7 @@ class SpectrumFragment : SerialConnectionFragment(),
     }
 
     private fun findCrossingPoints(halfHeight: Float, pickX: Float): Pair<Float, Float> {
-        val dataSet = spectrumChart.data.getDataSetByIndex(0)
+        val dataSet = spectrumChart.data.getDataSetByIndex(selectedFwhmMeasurementIndex)
         var leftX = -1f
         var rightX = -1f
 
@@ -926,12 +965,12 @@ class SpectrumFragment : SerialConnectionFragment(),
         }
     }
 
-    private fun getValuesByTouchPoint(tapX: Float): Entry? {
+    private fun getValuesByTouchPoint(selectedIndex: Int, tapX: Float): Entry? {
         val tapY = spectrumChart.height / 2f
         val transformer = spectrumChart.getTransformer(YAxis.AxisDependency.LEFT)
         val touchPoint = transformer.getValuesByTouchPoint(tapX, tapY)
         val tappedX = touchPoint.x
-        val closestEntry = getClosestEntryToX(tappedX)
+        val closestEntry = getClosestEntryToX(selectedIndex, tappedX)
         return closestEntry
     }
 
@@ -1119,7 +1158,7 @@ class SpectrumFragment : SerialConnectionFragment(),
         if (calibrationPointIndex < 0) {
             // new calibration point creation
             addVerticalCalibrationLine(peakChannel, peakEnergy, isotope)
-            updateChartWithCombinedXAxis()
+            updateChartWithCombinedXAxis(selectedCalibrationMeasurementIndex)
         } else {
             // update an existing calibration point
             updateVerticalCalibrationLine(calibrationPointIndex, peakChannel, peakEnergy, isotope)
@@ -1129,7 +1168,7 @@ class SpectrumFragment : SerialConnectionFragment(),
     private fun isValidChannel(channel: Double): Boolean {
         // Replace with your actual valid channel range (example: 0 to 4096)
         val minChannel = 0.0
-        val maxChannel = spectrumDataSet.entryCount
+        val maxChannel = spectrumDataSet.data[selectedCalibrationMeasurementIndex].resultData.energySpectrum.numberOfChannels
         return channel in minChannel..maxChannel.toDouble()
     }
 
@@ -1203,7 +1242,7 @@ class SpectrumFragment : SerialConnectionFragment(),
         measureTimer.stop()
     }
 
-    override fun onSpectrumRecordingTime(time: Int) {
+    override fun onSpectrumRecordingTime(time: Long) {
         measureMode = SpectrumMeasureMode.Scheduled
         // **Reset & Start Chronometer**
         measureTimer.base = SystemClock.elapsedRealtime() // Reset timer initially
@@ -1236,6 +1275,30 @@ class SpectrumFragment : SerialConnectionFragment(),
             val readCommand = OpenGammaKitCommands().readSpectrum().toByteArray()
             super.send(readCommand)
 
+        }
+    }
+
+    override fun onChoose(spectrumIndex: Int) {
+        selectedFwhmMeasurementIndex = spectrumIndex
+        measureMode = SpectrumMeasureMode.Fwhm
+        measureTimer.stop()
+        val spectrumCommand = OpenGammaKitCommands().setOut("off").toByteArray()
+        super.send(spectrumCommand)
+    }
+
+    override fun onChoose(uri: String) {
+        val openGammaKitData = readAndParseFile(requireContext(), uri.toUri())
+        spectrumDataSet.data.addAll(openGammaKitData.data)
+        updateChartSpectrumData()
+    }
+
+    companion object {
+        fun getLineColor(context: Context, index: Int): Int {
+            val colors = listOf(
+                context.resources.getColor(android.R.color.holo_blue_light, null),
+                Color.RED, Color.GREEN, Color.MAGENTA, Color.CYAN, Color.YELLOW
+            )
+            return colors[index % colors.size]
         }
     }
 }

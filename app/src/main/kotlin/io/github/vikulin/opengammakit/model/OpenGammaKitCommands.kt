@@ -18,7 +18,7 @@ class OpenGammaKitCommands {
     fun setTickRate(value: Int): String = "set tickrate $value\n"
     fun setTicker(toggle: Boolean): String = "set ticker ${toggle.toOnOff()}\n"
 
-    fun recordStart(minutes: Int, filename: String): String = "record start $minutes $filename\n"
+    fun recordStart(seconds: Long, filename: String): String = "record start $seconds $filename\n"
     fun recordStop(): String = "record stop\n"
     fun recordStatus(): String = "record status\n"
 

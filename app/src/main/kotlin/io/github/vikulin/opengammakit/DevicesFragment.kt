@@ -29,7 +29,7 @@ import io.github.vikulin.opengammakit.view.IsotopeListFragment
 import io.github.vikulin.opengammakit.view.SpectrumFileChooserDialogFragment
 import java.util.Locale
 
-class DevicesFragment : ListFragment() {
+class DevicesFragment : ListFragment(), SpectrumFileChooserDialogFragment.ChooseFileDialogListener {
 
     data class ListItem(
         val device: UsbDevice,
@@ -241,5 +241,18 @@ class DevicesFragment : ListFragment() {
     override fun onStop() {
         super.onStop()
         requireActivity().unregisterReceiver(usbReceiver)
+    }
+
+    override fun onChoose(uri: String) {
+        val args = Bundle().apply {
+            putString("file_spectrum_uri", uri)
+        }
+        val fragment = SpectrumFragment().apply {
+            arguments = args
+        }
+        parentFragmentManager.beginTransaction()
+            .replace(R.id.fragment, fragment, "spectrum_view")
+            .addToBackStack(null)
+            .commit()
     }
 }
