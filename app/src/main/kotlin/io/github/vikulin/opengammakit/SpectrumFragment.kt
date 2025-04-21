@@ -59,11 +59,15 @@ import java.io.InputStreamReader
 import kotlin.text.iterator
 import androidx.core.net.toUri
 import io.github.vikulin.opengammakit.model.GammaKitEntry
+import io.github.vikulin.opengammakit.view.FwhmSpectrumSelectionDialogFragment
+import io.github.vikulin.opengammakit.view.SpectrumFileChooserDialogFragment
 
 class SpectrumFragment : SerialConnectionFragment(),
     CalibrationUpdateOrRemoveDialogFragment.CalibrationDialogListener,
     CalibrationDialogFragment.CalibrationDialogListener,
-    SpectrumRecordingTimeDialogFragment.ChooseSpectrumRecordingTimeDialogListener{
+    SpectrumRecordingTimeDialogFragment.ChooseSpectrumRecordingTimeDialogListener,
+    FwhmSpectrumSelectionDialogFragment.ChooseSpectrumDialogListener,
+    SpectrumFileChooserDialogFragment.ChooseFileDialogListener{
 
     private lateinit var spectrumChart: LineChart
     private lateinit var measureTimer: Chronometer
@@ -74,6 +78,7 @@ class SpectrumFragment : SerialConnectionFragment(),
     private lateinit var btnShare: ImageButton
     private lateinit var btnLive: ImageButton
     private lateinit var btnSchedule: ImageButton
+    private lateinit var btnAddSpectrum: ImageButton
     private lateinit var clockProgressView: ClockProgressView
     private lateinit var spectrumDataSet: OpenGammaKitData
     // Indicates which graph is currently active for measurements such as Calibration and FWHM
@@ -132,6 +137,7 @@ class SpectrumFragment : SerialConnectionFragment(),
         btnShare = view.findViewById(R.id.btnShare)
         btnLive = view.findViewById(R.id.btnLive)
         btnSchedule = view.findViewById(R.id.btnSchedule)
+        btnAddSpectrum = view.findViewById(R.id.btnAddSpectrumFile)
         clockProgressView = view.findViewById(R.id.clockProgressView)
 
         gestureDetector = GestureDetector(requireContext(), object : GestureDetector.SimpleOnGestureListener() {
@@ -224,10 +230,16 @@ class SpectrumFragment : SerialConnectionFragment(),
         }
 
         btnFwhm.setOnClickListener {
-            measureMode = SpectrumMeasureMode.Fwhm
-            measureTimer.stop()
-            val spectrumCommand = OpenGammaKitCommands().setOut("off").toByteArray()
-            super.send(spectrumCommand)
+            if(spectrumDataSet.data.size>1){
+                // show graph selection dialog for FWhm measurement
+                val selectSpectrumDialog = FwhmSpectrumSelectionDialogFragment.Companion.newInstance(spectrumDataSet)
+                selectSpectrumDialog.show(childFragmentManager, "select_spectrum_dialog_fragment")
+            } else {
+                measureMode = SpectrumMeasureMode.Fwhm
+                measureTimer.stop()
+                val spectrumCommand = OpenGammaKitCommands().setOut("off").toByteArray()
+                super.send(spectrumCommand)
+            }
         }
 
         btnLive.setOnClickListener {
@@ -268,6 +280,11 @@ class SpectrumFragment : SerialConnectionFragment(),
 
         btnShare.setOnClickListener {
             shareChartScreenshot(requireContext(), spectrumChart, view.findViewById(R.id.tableContainer))
+        }
+
+        btnAddSpectrum.setOnClickListener {
+            val spectrumFileChooserDialog = SpectrumFileChooserDialogFragment()
+            spectrumFileChooserDialog.show(childFragmentManager, "spectrum_file_chooser_dialog_fragment")
         }
     }
 
@@ -369,8 +386,10 @@ class SpectrumFragment : SerialConnectionFragment(),
         if(measureMode == SpectrumMeasureMode.Scheduled){
             measureTimer.start() // Resume the timer
         }
-
-        //updateChannels(spectrumDataSet.entryCount)
+        selectedFwhmMeasurementIndex =
+            savedInstanceState?.getInt("selected_fwhm_measurement_index", 0) ?: run {
+                0
+            }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -392,14 +411,7 @@ class SpectrumFragment : SerialConnectionFragment(),
 
         // Save measureMode state if needed
         outState.putString("measure_mode", measureMode.name)
-    }
-
-    private fun getLineColor(index: Int): Int {
-        val colors = listOf(
-            resources.getColor(android.R.color.holo_blue_light, null),
-            Color.RED, Color.GREEN, Color.MAGENTA, Color.CYAN, Color.YELLOW
-        )
-        return colors[index % colors.size]
+        outState.putInt("selected_fwhm_measurement_index", selectedFwhmMeasurementIndex)
     }
 
     fun formatTimeSkipZeros(seconds: Long): String {
@@ -438,7 +450,7 @@ class SpectrumFragment : SerialConnectionFragment(),
                 lineWidth = 1.5f
                 setDrawCircles(false)
                 setDrawValues(false)
-                color = getLineColor(index)
+                color = getLineColor(requireContext(), index)
             }
         }
 
@@ -490,7 +502,7 @@ class SpectrumFragment : SerialConnectionFragment(),
                 lineWidth = 1.5f
                 setDrawCircles(false)
                 setDrawValues(false)
-                color = getLineColor(index)
+                color = getLineColor(requireContext(), index)
             }
         }
 
@@ -559,7 +571,7 @@ class SpectrumFragment : SerialConnectionFragment(),
             lineWidth = 1.5f
             setDrawCircles(false)
             setDrawValues(false)
-            color = getLineColor(selectedIndex)
+            color = getLineColor(requireContext(), selectedIndex)
         }
 
         val calibrationLegendDataSet = LineDataSet(listOf(Entry(0f, 0f)), "Calibration Points").apply {
@@ -1263,6 +1275,30 @@ class SpectrumFragment : SerialConnectionFragment(),
             val readCommand = OpenGammaKitCommands().readSpectrum().toByteArray()
             super.send(readCommand)
 
+        }
+    }
+
+    override fun onChoose(spectrumIndex: Int) {
+        selectedFwhmMeasurementIndex = spectrumIndex
+        measureMode = SpectrumMeasureMode.Fwhm
+        measureTimer.stop()
+        val spectrumCommand = OpenGammaKitCommands().setOut("off").toByteArray()
+        super.send(spectrumCommand)
+    }
+
+    override fun onChoose(uri: String) {
+        val openGammaKitData = readAndParseFile(requireContext(), uri.toUri())
+        spectrumDataSet.data.addAll(openGammaKitData.data)
+        updateChartSpectrumData()
+    }
+
+    companion object {
+        fun getLineColor(context: Context, index: Int): Int {
+            val colors = listOf(
+                context.resources.getColor(android.R.color.holo_blue_light, null),
+                Color.RED, Color.GREEN, Color.MAGENTA, Color.CYAN, Color.YELLOW
+            )
+            return colors[index % colors.size]
         }
     }
 }

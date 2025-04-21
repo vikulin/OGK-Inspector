@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -15,13 +14,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.DialogFragment
 import io.github.vikulin.opengammakit.R
 import androidx.core.net.toUri
-import androidx.fragment.app.Fragment
-import androidx.fragment.app.FragmentManager
-import io.github.vikulin.opengammakit.SpectrumFragment
-import io.github.vikulin.opengammakit.model.OpenGammaKitData
-import kotlinx.serialization.json.Json
-import java.io.BufferedReader
-import java.io.InputStreamReader
 
 class SpectrumFileChooserDialogFragment : DialogFragment() {
 
@@ -39,6 +31,22 @@ class SpectrumFileChooserDialogFragment : DialogFragment() {
                 }
             }
         }
+
+    override fun onAttach(context: Context) {
+        super.onAttach(context)
+
+        chooseFileListener = when {
+            parentFragment is ChooseFileDialogListener -> parentFragment as ChooseFileDialogListener
+            context is ChooseFileDialogListener -> context
+            else -> throw IllegalStateException("Host must implement ChooseFileDialogListener")
+        }
+    }
+
+    override fun onDetach() {
+        super.onDetach()
+
+        chooseFileListener = null
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -87,19 +95,17 @@ class SpectrumFileChooserDialogFragment : DialogFragment() {
 
     private fun handleFileOpen() {
         selectedFileUri?.let { uri ->
-            val args = Bundle().apply {
-                putString("file_spectrum_uri", uri.toString()) // Pass the Uri as a string
-            }
-            val fragment = SpectrumFragment().apply {
-                arguments = args
-            }
-            requireActivity().supportFragmentManager.beginTransaction()
-                .replace(R.id.fragment, fragment, "spectrum_view")
-                .addToBackStack(null)
-                .commit()
+            chooseFileListener?.onChoose(uri.toString())
             dismiss()
         } ?: run {
             selectedFileText.error = "Please select a file first."
         }
     }
+
+    // Define the callback interface
+    interface ChooseFileDialogListener {
+        fun onChoose(uri: String)
+    }
+
+    private var chooseFileListener: ChooseFileDialogListener? = null
 }
