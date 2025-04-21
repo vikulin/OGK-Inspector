@@ -58,6 +58,7 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 import kotlin.text.iterator
 import androidx.core.net.toUri
+import com.github.mikephil.charting.components.Legend
 import io.github.vikulin.opengammakit.model.GammaKitEntry
 import io.github.vikulin.opengammakit.view.FwhmSpectrumSelectionDialogFragment
 import io.github.vikulin.opengammakit.view.SpectrumFileChooserDialogFragment
@@ -432,7 +433,7 @@ class SpectrumFragment : SerialConnectionFragment(),
         val mt = entry.resultData.energySpectrum.measurementTime
         val ch = entry.resultData.energySpectrum.numberOfChannels
         val t = formatTimeSkipZeros(mt)
-        return (entry.deviceData.deviceName?:"Spectrum ${index + 1}")+" Channels $ch Counts $ct Time $t"
+        return (entry.deviceData.deviceName?:"Spectrum ${index + 1}")+" Ch $ch Ct $ct T $t"
     }
 
     private fun setupChart() {
@@ -473,7 +474,16 @@ class SpectrumFragment : SerialConnectionFragment(),
                 text = "Channel vs Counts"
                 textColor = primaryColor
             }
-            legend.textColor = primaryColor
+            legend.apply {
+                isWordWrapEnabled = true
+                form = Legend.LegendForm.LINE
+                textColor = resources.getColor(R.color.colorPrimaryText, null)
+                textSize = 12f
+                verticalAlignment = Legend.LegendVerticalAlignment.BOTTOM
+                horizontalAlignment = Legend.LegendHorizontalAlignment.LEFT
+                orientation = Legend.LegendOrientation.HORIZONTAL
+                setDrawInside(false)
+            }
             invalidate()
         }
 
@@ -509,6 +519,16 @@ class SpectrumFragment : SerialConnectionFragment(),
         // Set up chart
         spectrumChart.apply {
             data = LineData(dataSets)
+        }
+        spectrumChart.legend.apply {
+            isWordWrapEnabled = true
+            form = Legend.LegendForm.LINE
+            textColor = resources.getColor(R.color.colorPrimaryText, null)
+            textSize = 12f
+            verticalAlignment = Legend.LegendVerticalAlignment.BOTTOM
+            horizontalAlignment = Legend.LegendHorizontalAlignment.LEFT
+            orientation = Legend.LegendOrientation.HORIZONTAL
+            setDrawInside(false)
         }
 
         spectrumChart.data.notifyDataChanged()
@@ -600,7 +620,16 @@ class SpectrumFragment : SerialConnectionFragment(),
                 text = "Counts vs Energy"
                 textColor = primaryColor
             }
-            legend.textColor = primaryColor
+            legend.apply {
+                isWordWrapEnabled = true
+                form = Legend.LegendForm.LINE
+                textColor = resources.getColor(R.color.colorPrimaryText, null)
+                textSize = 12f
+                verticalAlignment = Legend.LegendVerticalAlignment.BOTTOM
+                horizontalAlignment = Legend.LegendHorizontalAlignment.LEFT
+                orientation = Legend.LegendOrientation.HORIZONTAL
+                setDrawInside(false)
+            }
             invalidate()
         }
 
@@ -1296,7 +1325,7 @@ class SpectrumFragment : SerialConnectionFragment(),
         fun getLineColor(context: Context, index: Int): Int {
             val colors = listOf(
                 context.resources.getColor(android.R.color.holo_blue_light, null),
-                Color.RED, Color.GREEN, Color.MAGENTA, Color.CYAN, Color.YELLOW
+                Color.GREEN, Color.RED, Color.MAGENTA, Color.CYAN, Color.YELLOW
             )
             return colors[index % colors.size]
         }
