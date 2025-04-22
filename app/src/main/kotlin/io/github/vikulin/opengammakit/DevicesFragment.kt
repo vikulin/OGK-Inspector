@@ -25,7 +25,7 @@ import io.github.vikulin.opengammakit.SettingsFragment
 import io.github.vikulin.opengammakit.SpectrumFragment
 import io.github.vikulin.opengammakit.TerminalFragment
 import io.github.vikulin.opengammakit.hardware.usb.UsbDeviceManager
-import io.github.vikulin.opengammakit.view.IsotopeListFragment
+import io.github.vikulin.opengammakit.IsotopeListFragment
 import io.github.vikulin.opengammakit.view.SpectrumFileChooserDialogFragment
 import java.util.Locale
 

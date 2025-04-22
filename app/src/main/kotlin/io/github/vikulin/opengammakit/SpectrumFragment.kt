@@ -59,6 +59,9 @@ import java.io.InputStreamReader
 import kotlin.text.iterator
 import androidx.core.net.toUri
 import com.github.mikephil.charting.components.Legend
+import io.github.vikulin.opengammakit.math.PeakInfo
+import io.github.vikulin.opengammakit.math.SpectrumModifier.applySavitzkyGolayFilter
+import io.github.vikulin.opengammakit.math.SpectrumModifier.detectCWTPeaks
 import io.github.vikulin.opengammakit.model.GammaKitEntry
 import io.github.vikulin.opengammakit.view.FwhmSpectrumSelectionDialogFragment
 import io.github.vikulin.opengammakit.view.SaveSelectedSpectrumDialogFragment
@@ -83,6 +86,8 @@ class SpectrumFragment : SerialConnectionFragment(),
     private lateinit var btnSchedule: ImageButton
     private lateinit var btnAddSpectrum: ImageButton
     private lateinit var btnSaveSpectrum: ImageButton
+    private lateinit var btnToggleFilter: ImageButton
+    private lateinit var btnToggleDetectPeak: ImageButton
     private lateinit var clockProgressView: ClockProgressView
     private lateinit var spectrumDataSet: OpenGammaKitData
     // Indicates which graph is currently active for measurements such as Calibration and FWHM
@@ -90,10 +95,10 @@ class SpectrumFragment : SerialConnectionFragment(),
     private var selectedFwhmMeasurementIndex = 0
     // This index is always 0 indicates which position the device spectrum writes to
     private val deviceSpectrumIndex = 0
-
     private var pauseOffset: Long = 0
     private var verticalLimitLine: LimitLine? = null
     private var horizontalLimitLine: LimitLine? = null
+    private var isPeakDetected = false
     private lateinit var gestureDetector: GestureDetector
     private var verticalCalibrationLineList = mutableListOf<Pair<LimitLine, Pair<Double, EmissionSource>>>()
     private val calibrationPreferencesKey = "calibration_data_"
@@ -143,6 +148,8 @@ class SpectrumFragment : SerialConnectionFragment(),
         btnSchedule = view.findViewById(R.id.btnSchedule)
         btnAddSpectrum = view.findViewById(R.id.btnAddSpectrumFile)
         btnSaveSpectrum = view.findViewById(R.id.btnSaveSpectrumFile)
+        btnToggleFilter = view.findViewById(R.id.btnToggleFilter)
+        btnToggleDetectPeak = view.findViewById(R.id.btnToggleDetectPeak)
         clockProgressView = view.findViewById(R.id.clockProgressView)
 
         gestureDetector = GestureDetector(requireContext(), object : GestureDetector.SimpleOnGestureListener() {
@@ -292,6 +299,11 @@ class SpectrumFragment : SerialConnectionFragment(),
             spectrumFileChooserDialog.show(childFragmentManager, "spectrum_file_chooser_dialog_fragment")
         }
 
+        for (entry in spectrumDataSet.data) {
+            val energy = entry.resultData.energySpectrum
+            energy.rawSpectrum = energy.spectrum.toList()
+        }
+
         btnSaveSpectrum.setOnClickListener {
             if(spectrumDataSet.data.size>1){
                 // show select spectrum to save into a file
@@ -301,6 +313,53 @@ class SpectrumFragment : SerialConnectionFragment(),
                 saveGammaKitDataAsJson(requireContext(), spectrumDataSet)
             }
         }
+
+        btnToggleFilter.setOnClickListener {
+            toggleSavitzkyGolayFilter()
+            updateChartSpectrumData()
+        }
+
+        btnToggleDetectPeak.setOnClickListener {
+            if(!isPeakDetected) {
+                applySavitzkyGolayFilter(apply = true)
+                val peaks = detectCWTPeaks(spectrumDataSet, listOf(0), estimateBaseline = true)
+                drawPeakLimitLines(peaks)
+                isPeakDetected = true
+            } else {
+                applySavitzkyGolayFilter(apply = false)
+                val xAxis = spectrumChart.xAxis
+                xAxis.limitLines.removeIf { it.label.startsWith("P@") }
+                isPeakDetected = false
+            }
+            updateChartSpectrumData()
+        }
+    }
+
+    fun drawPeakLimitLines(peaks: List<PeakInfo>) {
+        val xAxis = spectrumChart.xAxis
+        xAxis.limitLines.removeIf { it.label.startsWith("P@") }
+
+        val sortedCalibrationList = verticalCalibrationLineList.sortedBy { it.second.first }
+        for (peak in peaks) {
+            val l: String = if(verticalCalibrationLineList.size > 1){
+                // use calibrated energy
+                "P@"+interpolateEnergy(sortedCalibrationList, peak.channel.toDouble()).toLong().toString()+
+                        "keV"
+            } else {
+                "P@${peak.channel}"
+            }
+            val limitLine = LimitLine(peak.channel.toFloat())
+            limitLine.apply {
+                lineColor = Color.GRAY
+                lineWidth = 1f
+                label = l
+                enableDashedLine(5f, 5f, 0f)
+                textColor = resources.getColor(R.color.colorPrimaryText, null)
+            }
+            xAxis.addLimitLine(limitLine)
+        }
+
+        spectrumChart.invalidate() // Refresh the chart
     }
 
     private fun updateRecordingProgress(progress: Float, remainingSeconds: Long) {
@@ -561,36 +620,6 @@ class SpectrumFragment : SerialConnectionFragment(),
         // Sort calibration lines
         val sortedCalibrationList = verticalCalibrationLineList.sortedBy { it.second.first }
 
-        fun interpolateEnergy(channel: Double): Double {
-            return when {
-                channel <= sortedCalibrationList.first().second.first -> {
-                    val (c1, e1) = sortedCalibrationList.first().second
-                    val (c2, e2) = sortedCalibrationList[1].second
-                    val ratio = (channel - c1) / (c2 - c1)
-                    e1.energy + ratio * (e2.energy - e1.energy)
-                }
-
-                channel >= sortedCalibrationList.last().second.first -> {
-                    val (c1, e1) = sortedCalibrationList[sortedCalibrationList.size - 2].second
-                    val (c2, e2) = sortedCalibrationList.last().second
-                    val ratio = (channel - c1) / (c2 - c1)
-                    e1.energy + ratio * (e2.energy - e1.energy)
-                }
-
-                else -> {
-                    for (i in 0 until sortedCalibrationList.size - 1) {
-                        val (c1, e1) = sortedCalibrationList[i].second
-                        val (c2, e2) = sortedCalibrationList[i + 1].second
-                        if (channel in c1..c2) {
-                            val ratio = (channel - c1) / (c2 - c1)
-                            return e1.energy + ratio * (e2.energy - e1.energy)
-                        }
-                    }
-                    channel // fallback
-                }
-            }
-        }
-
         // Get the selected spectrum
         val selectedSpectrum = spectrumDataSet.data.getOrNull(selectedIndex)?.resultData?.energySpectrum
             ?: Json.decodeFromString<OpenGammaKitData>(zeroedData).data.firstOrNull()?.resultData?.energySpectrum
@@ -598,7 +627,7 @@ class SpectrumFragment : SerialConnectionFragment(),
 
         // Interpolate channel -> energy and create entries
         val energyEntries = selectedSpectrum.spectrum.mapIndexed { index, count ->
-            val energy = interpolateEnergy(index.toDouble())
+            val energy = interpolateEnergy(sortedCalibrationList, index.toDouble())
             Entry(energy.toFloat(), count.toFloat())
         }
         val label = getSpectrumLabel(selectedIndex, spectrumDataSet.data[selectedIndex])
@@ -626,7 +655,7 @@ class SpectrumFragment : SerialConnectionFragment(),
                 textColor = primaryColor
                 valueFormatter = object : ValueFormatter() {
                     override fun getAxisLabel(value: Float, axis: AxisBase?): String {
-                        val energy = interpolateEnergy(value.toDouble())
+                        val energy = interpolateEnergy(sortedCalibrationList, value.toDouble())
                         return "%.1f keV".format(energy)
                     }
                 }
@@ -650,8 +679,44 @@ class SpectrumFragment : SerialConnectionFragment(),
             invalidate()
         }
 
+        if(isPeakDetected){
+            applySavitzkyGolayFilter(apply = true)
+            val peaks = detectCWTPeaks(spectrumDataSet, listOf(0), estimateBaseline = true)
+            drawPeakLimitLines(peaks)
+        }
+
         // Update entries after axis transformation
         updateChartSpectrumData()
+    }
+
+    private fun interpolateEnergy(sortedCalibrationList:  List<Pair<LimitLine, Pair<Double, EmissionSource>>>, channel: Double): Double {
+        return when {
+            channel <= sortedCalibrationList.first().second.first -> {
+                val (c1, e1) = sortedCalibrationList.first().second
+                val (c2, e2) = sortedCalibrationList[1].second
+                val ratio = (channel - c1) / (c2 - c1)
+                e1.energy + ratio * (e2.energy - e1.energy)
+            }
+
+            channel >= sortedCalibrationList.last().second.first -> {
+                val (c1, e1) = sortedCalibrationList[sortedCalibrationList.size - 2].second
+                val (c2, e2) = sortedCalibrationList.last().second
+                val ratio = (channel - c1) / (c2 - c1)
+                e1.energy + ratio * (e2.energy - e1.energy)
+            }
+
+            else -> {
+                for (i in 0 until sortedCalibrationList.size - 1) {
+                    val (c1, e1) = sortedCalibrationList[i].second
+                    val (c2, e2) = sortedCalibrationList[i + 1].second
+                    if (channel in c1..c2) {
+                        val ratio = (channel - c1) / (c2 - c1)
+                        return e1.energy + ratio * (e2.energy - e1.energy)
+                    }
+                }
+                channel // fallback
+            }
+        }
     }
 
     override fun read() {
@@ -1220,18 +1285,19 @@ class SpectrumFragment : SerialConnectionFragment(),
         isotope: Isotope?
     ) {
 
-        if(!isValid(peakChannel = peakChannel, peakEnergy = peakEnergy)){
+        if(!isValid(calibrationPointIndex = calibrationPointIndex, peakChannel = peakChannel, peakEnergy = peakEnergy)){
             return
         }
 
         if (calibrationPointIndex < 0) {
             // new calibration point creation
             addVerticalCalibrationLine(peakChannel, peakEnergy, isotope)
-            updateChartWithCombinedXAxis(selectedCalibrationMeasurementIndex)
         } else {
             // update an existing calibration point
             updateVerticalCalibrationLine(calibrationPointIndex, peakChannel, peakEnergy, isotope)
         }
+
+        updateChartWithCombinedXAxis(selectedCalibrationMeasurementIndex)
     }
 
     private fun isValidChannel(channel: Double): Boolean {
@@ -1248,7 +1314,7 @@ class SpectrumFragment : SerialConnectionFragment(),
         return energy in minEnergy..maxEnergy
     }
 
-    private fun isValid(peakChannel: Double, peakEnergy: Double): Boolean{
+    private fun isValid(calibrationPointIndex: Int, peakChannel: Double, peakEnergy: Double): Boolean{
 
         if (!isValidChannel(peakChannel)) {
             val error = "Invalid channel value: $peakChannel. The channel must be within the valid range."
@@ -1264,7 +1330,7 @@ class SpectrumFragment : SerialConnectionFragment(),
             return false
         }
 
-        if (!isChannelEnergyPairValid(peakChannel, peakEnergy)) {
+        if (!isChannelEnergyPairValid(calibrationPointIndex, peakChannel, peakEnergy)) {
             val error = "Channel-energy pair ($peakChannel, $peakEnergy) conflicts with existing ranges."
             val errorDialog = ErrorDialogFragment.Companion.newInstance(error)
             errorDialog.show(childFragmentManager, "error_dialog_fragment")
@@ -1273,27 +1339,40 @@ class SpectrumFragment : SerialConnectionFragment(),
         return true
     }
 
-    private fun isChannelEnergyPairValid(channel: Double, energy: Double): Boolean {
-        // Iterate through the existing verticalCalibrationLineList
-        verticalCalibrationLineList.forEach { pair ->
-            val existingChannel = pair.second.first
-            val existingEnergy = pair.second.second.energy
+    private fun isChannelEnergyPairValid(calibrationPointIndex: Int, channel: Double, energy: Double): Boolean {
+        val simulatedList = verticalCalibrationLineList.toMutableList()
+        val newPair = channel to EmissionSource("", energy)
 
-            // Case 1: New channel (c2) > existing channel (c1)
+        // Check for duplicate channels
+        val duplicateChannel = simulatedList.any { it.second.first == channel && it != simulatedList.getOrNull(calibrationPointIndex) }
+        if (duplicateChannel) {
+            println("Invalid pair: A record with channel $channel already exists.")
+            return false
+        }
+
+        if (calibrationPointIndex < 0) {
+            // Adding new point
+            simulatedList.add(LimitLine(channel.toFloat()) to newPair)
+        } else {
+            // Updating an existing point
+            val existingLimitLine = simulatedList[calibrationPointIndex].first
+            simulatedList[calibrationPointIndex] = existingLimitLine to newPair
+        }
+
+        // Iterate through the simulated list for validation
+        for ((_, existingPair) in simulatedList) {
+            val existingChannel = existingPair.first
+            val existingEnergy = existingPair.second.energy
+
+            // Case 1: New channel (c2) > existing channel (c1) but energy is not greater
             if (channel > existingChannel && energy <= existingEnergy) {
                 println("Invalid pair: New channel $channel is greater than existing channel $existingChannel, but energy $energy is not greater than existing energy $existingEnergy.")
                 return false
             }
 
-            // Case 2: New channel (c2) < existing channel (c1)
+            // Case 2: New channel (c2) < existing channel (c1) but energy is not less
             if (channel < existingChannel && energy >= existingEnergy) {
                 println("Invalid pair: New channel $channel is less than existing channel $existingChannel, but energy $energy is not less than existing energy $existingEnergy.")
-                return false
-            }
-
-            // Case 3: New channel matches existing channel exactly (c2 == c1)
-            if (channel == existingChannel) {
-                println("Invalid pair: New channel $channel matches an existing channel $existingChannel. Duplicates are not allowed.")
                 return false
             }
         }
@@ -1377,7 +1456,42 @@ class SpectrumFragment : SerialConnectionFragment(),
         saveGammaKitDataAsJson(requireContext(), filteredData)
     }
 
+    private fun toggleSavitzkyGolayFilter(){
+        for (entry in spectrumDataSet.data) {
+            val energy = entry.resultData.energySpectrum
+            if (!energy.filters.contains("SavitzkyGolay")) {
+                // Apply filter and add tag
+                applySavitzkyGolayFilter(entry)
+                entry.resultData.energySpectrum.filters.add("SavitzkyGolay")
+            } else {
+                if (energy.filters.contains("SavitzkyGolay")) {
+                    // Restore raw spectrum and remove tag
+                    energy.spectrum = energy.rawSpectrum ?: energy.spectrum
+                    energy.filters.removeIf { it=="SavitzkyGolay" }
+                }
+            }
+        }
+    }
 
+    private fun applySavitzkyGolayFilter(apply: Boolean) {
+        for (entry in spectrumDataSet.data) {
+            val energy = entry.resultData.energySpectrum
+
+            if (apply) {
+                if (!energy.filters.contains("SavitzkyGolay")) {
+                    // Apply filter and add tag
+                    applySavitzkyGolayFilter(entry)
+                    entry.resultData.energySpectrum.filters.add("SavitzkyGolay")
+                }
+            } else {
+                if (energy.filters.contains("SavitzkyGolay")) {
+                    // Restore raw spectrum and remove tag
+                    energy.spectrum = energy.rawSpectrum ?: energy.spectrum
+                    energy.filters.removeIf { it=="SavitzkyGolay" }
+                }
+            }
+        }
+    }
 
     companion object {
         fun getLineColor(context: Context, index: Int): Int {

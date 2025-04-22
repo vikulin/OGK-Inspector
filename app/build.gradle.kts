@@ -12,8 +12,8 @@ android {
         applicationId = "io.github.vikulin.opengammakit"
         minSdk = 24
         targetSdk = 35
-        versionCode = 11
-        versionName = "1.1.1"
+        versionCode = 12
+        versionName = "1.1.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         setProperty("archivesBaseName", "ogk-inspector-$versionName")
     }
@@ -50,6 +50,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
     implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
     implementation("com.google.android.flexbox:flexbox:3.0.0")
+    implementation("org.apache.commons:commons-math3:3.6.1")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

@@ -32,4 +32,6 @@ data class EnergySpectrum(
     var measurementTime: Long,
     var spectrum: List<Long>,
     var validPulseCount: Long,
+    var rawSpectrum: List<Long>? = null,
+    var filters: MutableList<String> = mutableListOf<String>()
 ) : JavaSerializable

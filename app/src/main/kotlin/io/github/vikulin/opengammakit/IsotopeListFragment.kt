@@ -1,4 +1,4 @@
-package io.github.vikulin.opengammakit.view
+package io.github.vikulin.opengammakit
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -8,7 +8,6 @@ import android.widget.TextView
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import io.github.vikulin.opengammakit.R
 import io.github.vikulin.opengammakit.adapter.IsotopeAdapter
 import io.github.vikulin.opengammakit.model.Isotope
 import org.json.JSONObject
