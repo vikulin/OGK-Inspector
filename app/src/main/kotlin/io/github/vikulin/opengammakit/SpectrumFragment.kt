@@ -194,35 +194,39 @@ class SpectrumFragment : SerialConnectionFragment(),
             }
         })
 
-        arguments?.let {
+        // Try to restore from savedInstanceState first
+        val restoredDataSet = savedInstanceState?.getSerializable("GRAPH_ENTRIES") as? OpenGammaKitData
+        if (restoredDataSet != null) {
+            initChart(savedInstanceState)
+            setupChart()
+        } else {
+            // Fallback to arguments
             val fileUri = arguments?.getString("file_spectrum_uri")?.toUri()
-            fileUri?.let { uri ->
+            if (fileUri != null) {
                 try {
-                    // Handle the Uri (e.g., read and parse the file)
                     measureMode = SpectrumMeasureMode.ReadSpectrumFromFile
-                    val spectrumDataSet = readAndParseFile(requireContext(), uri)
-                    // Initializing and populating data
-                    this@SpectrumFragment.spectrumDataSet = spectrumDataSet
+                    val parsedData = readAndParseFile(requireContext(), fileUri)
+                    spectrumDataSet = parsedData
+
                     Log.d(
-                        "Test",
-                        "Parsed input file $uri. Spectrum number: ${spectrumDataSet.data.size}"
+                        "SpectrumFragment",
+                        "Parsed input file $fileUri. Spectrum number: ${parsedData.data.size}"
                     )
 
-                    val outState = Bundle()
-                    outState.putSerializable("GRAPH_ENTRIES", this@SpectrumFragment.spectrumDataSet)
-                    // Save the elapsed time for the Chronometer
-                    //outState.putLong("chronometer_elapsed_time", measureTime)
-                    // Save measureMode state if needed
-                    outState.putString("measure_mode", measureMode.name)
+                    val outState = Bundle().apply {
+                        putSerializable("GRAPH_ENTRIES", parsedData)
+                        putString("measure_mode", measureMode.name)
+                    }
+
                     initChart(outState)
                     setupChart()
-                } catch (e: Exception){
+                } catch (e: Exception) {
                     e.printStackTrace()
-                    val error = e.message.toString()
-                    val errorDialog = ErrorDialogFragment.Companion.newInstance(error)
+                    val errorDialog = ErrorDialogFragment.newInstance(e.message ?: "Unknown error")
                     errorDialog.show(childFragmentManager, "error_dialog_fragment")
                 }
-            }?: run {
+            } else {
+                // If no URI and no saved state, fallback to defaults
                 initChart(savedInstanceState)
                 setupChart()
             }
@@ -299,11 +303,6 @@ class SpectrumFragment : SerialConnectionFragment(),
             spectrumFileChooserDialog.show(childFragmentManager, "spectrum_file_chooser_dialog_fragment")
         }
 
-        for (entry in spectrumDataSet.data) {
-            val energy = entry.resultData.energySpectrum
-            energy.rawSpectrum = energy.spectrum.toList()
-        }
-
         btnSaveSpectrum.setOnClickListener {
             if(spectrumDataSet.data.size>1){
                 // show select spectrum to save into a file
@@ -322,8 +321,13 @@ class SpectrumFragment : SerialConnectionFragment(),
         btnToggleDetectPeak.setOnClickListener {
             if(!isPeakDetected) {
                 applySavitzkyGolayFilter(apply = true)
-                val peaks = detectCWTPeaks(spectrumDataSet, listOf(0), estimateBaseline = true)
-                drawPeakLimitLines(peaks)
+                val peaksWithEstimatedBaseline = detectCWTPeaks(spectrumDataSet, listOf(0), estimateBaseline = true, minSignalToNoise=3.0)
+                if(peaksWithEstimatedBaseline.isEmpty()){
+                    val peaksNoEstimatedBaseline = detectCWTPeaks(spectrumDataSet, listOf(0), estimateBaseline = false, minSignalToNoise=2.0)
+                    drawPeakLimitLines(peaksNoEstimatedBaseline)
+                } else {
+                    drawPeakLimitLines(peaksWithEstimatedBaseline)
+                }
                 isPeakDetected = true
             } else {
                 applySavitzkyGolayFilter(apply = false)
@@ -1460,6 +1464,8 @@ class SpectrumFragment : SerialConnectionFragment(),
         for (entry in spectrumDataSet.data) {
             val energy = entry.resultData.energySpectrum
             if (!energy.filters.contains("SavitzkyGolay")) {
+                //create a copy for next recovery
+                energy.rawSpectrum = energy.spectrum.toList()
                 // Apply filter and add tag
                 applySavitzkyGolayFilter(entry)
                 entry.resultData.energySpectrum.filters.add("SavitzkyGolay")
@@ -1479,6 +1485,8 @@ class SpectrumFragment : SerialConnectionFragment(),
 
             if (apply) {
                 if (!energy.filters.contains("SavitzkyGolay")) {
+                    //create a copy for next recovery
+                    energy.rawSpectrum = energy.spectrum.toList()
                     // Apply filter and add tag
                     applySavitzkyGolayFilter(entry)
                     entry.resultData.energySpectrum.filters.add("SavitzkyGolay")
