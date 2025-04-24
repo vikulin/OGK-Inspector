@@ -59,10 +59,11 @@ import java.io.InputStreamReader
 import kotlin.text.iterator
 import androidx.core.net.toUri
 import com.github.mikephil.charting.components.Legend
-import io.github.vikulin.opengammakit.math.PeakInfo
 import io.github.vikulin.opengammakit.math.SpectrumModifier.applySavitzkyGolayFilter
 import io.github.vikulin.opengammakit.math.SpectrumModifier.detectCWTPeaks
+import io.github.vikulin.opengammakit.math.SpectrumModifier.smartPeakDetect
 import io.github.vikulin.opengammakit.model.GammaKitEntry
+import io.github.vikulin.opengammakit.model.PeakInfo
 import io.github.vikulin.opengammakit.view.FwhmSpectrumSelectionDialogFragment
 import io.github.vikulin.opengammakit.view.SaveSelectedSpectrumDialogFragment
 import io.github.vikulin.opengammakit.view.SpectrumFileChooserDialogFragment
@@ -238,6 +239,8 @@ class SpectrumFragment : SerialConnectionFragment(),
 
         showCalibrationLimitLines()
 
+        updateDetectedPeaks()
+
         btnCalibration.setOnClickListener {
             measureMode = SpectrumMeasureMode.Calibration
             measureTimer.stop()
@@ -321,13 +324,8 @@ class SpectrumFragment : SerialConnectionFragment(),
         btnToggleDetectPeak.setOnClickListener {
             if(!isPeakDetected) {
                 applySavitzkyGolayFilter(apply = true)
-                val peaksWithEstimatedBaseline = detectCWTPeaks(spectrumDataSet, listOf(0), estimateBaseline = true, minSignalToNoise=3.0)
-                if(peaksWithEstimatedBaseline.isEmpty()){
-                    val peaksNoEstimatedBaseline = detectCWTPeaks(spectrumDataSet, listOf(0), estimateBaseline = false, minSignalToNoise=2.0)
-                    drawPeakLimitLines(peaksNoEstimatedBaseline)
-                } else {
-                    drawPeakLimitLines(peaksWithEstimatedBaseline)
-                }
+                smartPeakDetect(spectrumDataSet, listOf(0))
+                drawPeakLimitLines()
                 isPeakDetected = true
             } else {
                 applySavitzkyGolayFilter(apply = false)
@@ -339,24 +337,31 @@ class SpectrumFragment : SerialConnectionFragment(),
         }
     }
 
-    fun drawPeakLimitLines(peaks: List<PeakInfo>) {
+    fun drawPeakLimitLines() {
         val xAxis = spectrumChart.xAxis
         xAxis.limitLines.removeIf { it.label.startsWith("P@") }
 
+        // Assume you are working with spectrum index = 0
+        val energySpectrum = spectrumDataSet.data[0].resultData.energySpectrum
+        val peaks = energySpectrum.peaks
+        if (peaks.isEmpty()) return
+
         val sortedCalibrationList = verticalCalibrationLineList.sortedBy { it.second.first }
+
         for (peak in peaks) {
-            val l: String = if(verticalCalibrationLineList.size > 1){
-                // use calibrated energy
-                "P@"+interpolateEnergy(sortedCalibrationList, peak.channel.toDouble()).toLong().toString()+
-                        "keV"
+            val labelText = if (verticalCalibrationLineList.size > 1) {
+                // Use calibrated energy
+                val energy = interpolateEnergy(sortedCalibrationList, peak.channel.toDouble()).toLong()
+                "P@$energy keV"
             } else {
                 "P@${peak.channel}"
             }
+
             val limitLine = LimitLine(peak.channel.toFloat())
             limitLine.apply {
                 lineColor = Color.GRAY
                 lineWidth = 1f
-                label = l
+                label = labelText
                 enableDashedLine(5f, 5f, 0f)
                 textColor = resources.getColor(R.color.colorPrimaryText, null)
             }
@@ -431,6 +436,7 @@ class SpectrumFragment : SerialConnectionFragment(),
         loadCalibrationData()
         updateChartWithCombinedXAxis(selectedCalibrationMeasurementIndex)
         showCalibrationLimitLines()
+        updateDetectedPeaks()
         super.setDtr(true)
         val command = OpenGammaKitCommands().setOut("spectrum").toByteArray()
         super.send(command)
@@ -468,6 +474,10 @@ class SpectrumFragment : SerialConnectionFragment(),
             savedInstanceState?.getInt("selected_fwhm_measurement_index", 0) ?: run {
                 0
             }
+        isPeakDetected =
+            savedInstanceState?.getBoolean("is_peak_detected", false) ?: run {
+                false
+            }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -490,6 +500,7 @@ class SpectrumFragment : SerialConnectionFragment(),
         // Save measureMode state if needed
         outState.putString("measure_mode", measureMode.name)
         outState.putInt("selected_fwhm_measurement_index", selectedFwhmMeasurementIndex)
+        outState.putBoolean("is_peak_detected", isPeakDetected)
     }
 
     fun formatTimeSkipZeros(seconds: Long): String {
@@ -682,15 +693,16 @@ class SpectrumFragment : SerialConnectionFragment(),
             }
             invalidate()
         }
-
-        if(isPeakDetected){
-            applySavitzkyGolayFilter(apply = true)
-            val peaks = detectCWTPeaks(spectrumDataSet, listOf(0), estimateBaseline = true)
-            drawPeakLimitLines(peaks)
-        }
-
         // Update entries after axis transformation
         updateChartSpectrumData()
+    }
+
+    private fun updateDetectedPeaks() {
+        if(isPeakDetected){
+            applySavitzkyGolayFilter(apply = true)
+            smartPeakDetect(spectrumDataSet, listOf(0))
+            drawPeakLimitLines()
+        }
     }
 
     private fun interpolateEnergy(sortedCalibrationList:  List<Pair<LimitLine, Pair<Double, EmissionSource>>>, channel: Double): Double {
@@ -1302,6 +1314,7 @@ class SpectrumFragment : SerialConnectionFragment(),
         }
 
         updateChartWithCombinedXAxis(selectedCalibrationMeasurementIndex)
+        updateDetectedPeaks()
     }
 
     private fun isValidChannel(channel: Double): Boolean {

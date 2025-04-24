@@ -33,5 +33,14 @@ data class EnergySpectrum(
     var spectrum: List<Long>,
     var validPulseCount: Long,
     var rawSpectrum: List<Long>? = null,
-    var filters: MutableList<String> = mutableListOf<String>()
+    var filters: MutableList<String> = mutableListOf<String>(),
+    var peaks: MutableList<PeakInfo> = mutableListOf<PeakInfo>()
+) : JavaSerializable
+
+@Serializable
+data class PeakInfo(
+    val channel: Int,
+    val snr: Double,
+    val intensity: Double,
+    val scale: Int
 ) : JavaSerializable

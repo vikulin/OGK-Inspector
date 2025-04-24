@@ -2,6 +2,7 @@ package io.github.vikulin.opengammakit.math
 
 import io.github.vikulin.opengammakit.model.GammaKitEntry
 import io.github.vikulin.opengammakit.model.OpenGammaKitData
+import io.github.vikulin.opengammakit.model.PeakInfo
 import org.apache.commons.math3.linear.Array2DRowRealMatrix
 import org.apache.commons.math3.linear.LUDecomposition
 import kotlin.math.PI
@@ -73,7 +74,7 @@ object SpectrumModifier {
         waveletWidths: IntRange = 1..10,
         minSignalToNoise: Double = 3.0,
         peakProximityThreshold: Int = 3
-    ): List<PeakInfo> {
+    ): MutableList<PeakInfo> {
         val detectedPeaks = mutableListOf<PeakInfo>()
 
         for (spectrumIndex in indexesToAnalyze) {
@@ -109,7 +110,7 @@ object SpectrumModifier {
                 val snr = maxAcrossScales[i] / noiseStdDev
                 if (isLocalMax(maxAcrossScales, i) && snr > minSignalToNoise) {
                     // Track each peak with its channel, scale, and intensity
-                    localMaxima.add(PeakInfo(i, spectrumIndex, snr, maxAcrossScales[i], getPeakScale(cwtMatrix, i)))
+                    localMaxima.add(PeakInfo(i, snr, maxAcrossScales[i], getPeakScale(cwtMatrix, i)))
                 }
             }
 
@@ -117,13 +118,14 @@ object SpectrumModifier {
             val groupedPeaks = groupPeaksByProximity(localMaxima, peakProximityThreshold)
 
             detectedPeaks.addAll(groupedPeaks)
+            dataSet.data[spectrumIndex].resultData.energySpectrum.peaks.addAll(groupedPeaks)
         }
 
         return detectedPeaks
     }
 
     // Group peaks by proximity (within a given number of channels)
-    fun groupPeaksByProximity(peaks: List<PeakInfo>, proximityThreshold: Int): List<PeakInfo> {
+    private fun groupPeaksByProximity(peaks: List<PeakInfo>, proximityThreshold: Int): List<PeakInfo> {
         val groupedPeaks = mutableListOf<PeakInfo>()
         val sortedPeaks = peaks.sortedBy { it.channel }
 
@@ -153,13 +155,13 @@ object SpectrumModifier {
     }
 
     // Helper to determine the scale of the peak (which wavelet width provided the max response)
-    fun getPeakScale(cwtMatrix: Array<DoubleArray>, peakChannel: Int): Int {
+    private fun getPeakScale(cwtMatrix: Array<DoubleArray>, peakChannel: Int): Int {
         val maxScaleIndex = cwtMatrix.indices.maxByOrNull { abs(cwtMatrix[it][peakChannel]) }
         return maxScaleIndex ?: 0
     }
 
     // Optional baseline removal method using simple rolling median subtraction
-    fun removeBaseline(spectrum: List<Double>, windowSize: Int = 25): List<Double> {
+    private fun removeBaseline(spectrum: List<Double>, windowSize: Int = 25): List<Double> {
         val halfWin = windowSize / 2
         return spectrum.mapIndexed { i, value ->
             val window = spectrum.subList(
@@ -171,7 +173,7 @@ object SpectrumModifier {
     }
 
     // Ricker (Mexican Hat) wavelet
-    fun rickerWavelet(length: Int, a: Double): DoubleArray {
+    private fun rickerWavelet(length: Int, a: Double): DoubleArray {
         val wavelet = DoubleArray(length)
         val half = length / 2
         val factor = 2.0 / (sqrt(3.0 * a) * cbrt(PI))
@@ -184,7 +186,7 @@ object SpectrumModifier {
     }
 
     // Convolution (mirror padding at boundaries)
-    fun convolve(signal: List<Double>, kernel: DoubleArray): DoubleArray {
+    private fun convolve(signal: List<Double>, kernel: DoubleArray): DoubleArray {
         val half = kernel.size / 2
         return DoubleArray(signal.size) { i ->
             var sum = 0.0
@@ -202,8 +204,16 @@ object SpectrumModifier {
     }
 
     // Detect if point is a local maximum
-    fun isLocalMax(values: DoubleArray, i: Int): Boolean {
+    private fun isLocalMax(values: DoubleArray, i: Int): Boolean {
         return (values[i] > values[i - 1]) && (values[i] > values[i + 1])
     }
 
+    fun smartPeakDetect(
+        dataSet: OpenGammaKitData,
+        indexesToAnalyze: List<Int>){
+        val peaksWithEstimatedBaseline = detectCWTPeaks(dataSet, indexesToAnalyze, estimateBaseline = true, minSignalToNoise=3.0)
+        if(peaksWithEstimatedBaseline.isEmpty()){
+            detectCWTPeaks(dataSet, indexesToAnalyze, estimateBaseline = false, minSignalToNoise=2.0)
+        }
+    }
 }
