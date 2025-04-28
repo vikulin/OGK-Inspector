@@ -10,7 +10,6 @@ import kotlin.math.abs
 import kotlin.math.cbrt
 import kotlin.math.exp
 import kotlin.math.pow
-import kotlin.math.roundToLong
 import kotlin.math.sqrt
 
 object SpectrumModifier {
@@ -63,7 +62,7 @@ object SpectrumModifier {
             val spectrum = entry.resultData.energySpectrum.spectrum.map { it.toDouble() }
             if (spectrum.size < 31) return // Too small for filtering
             val smoothed = savitzkyGolay(spectrum.toDoubleArray(), windowSize = 31, polyOrder = 3)
-            entry.resultData.energySpectrum.spectrum = smoothed.map { it.roundToLong() }
+            entry.resultData.energySpectrum.outputSpectrum = smoothed.map { it }.toMutableList()
     }
 
     // Public method to detect peaks in selected spectrums of a dataset
@@ -78,7 +77,7 @@ object SpectrumModifier {
         val detectedPeaks = mutableListOf<PeakInfo>()
 
         for (spectrumIndex in indexesToAnalyze) {
-            val spectrum = dataSet.data[spectrumIndex].resultData.energySpectrum.spectrum.map { it.toDouble() }
+            val spectrum = dataSet.data[spectrumIndex].resultData.energySpectrum.outputSpectrum.map { it.toDouble() }
             val correctedSpectrum = if (estimateBaseline) removeBaseline(spectrum) else spectrum
 
             val waveletWidthList = waveletWidths.toList()

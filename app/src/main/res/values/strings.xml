@@ -16,4 +16,5 @@
     <string name="save_spectrum_file">Save spectrum file</string>
     <string name="apply_savitzky_golay_filter">Apply Savitzky-Golay filter</string>
     <string name="detect_peak">Detect peak</string>
+    <string name="log_scale">Logarithmic scale</string>
 </resources>

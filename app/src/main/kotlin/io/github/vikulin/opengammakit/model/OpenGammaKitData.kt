@@ -30,11 +30,11 @@ data class ResultData(
 data class EnergySpectrum(
     var numberOfChannels: Int,
     var measurementTime: Long,
-    var spectrum: List<Long>,
+    var spectrum: List<Long>, // raw integer counts (original measurement)
     var validPulseCount: Long,
-    var rawSpectrum: List<Long>? = null,
-    var filters: MutableList<String> = mutableListOf<String>(),
-    var peaks: MutableList<PeakInfo> = mutableListOf<PeakInfo>()
+    var outputSpectrum: MutableList<Double> = mutableListOf<Double>(), // transformed data for display
+    var filters: MutableList<String> = mutableListOf<String>(), // list of applied filters (like "LogScale")
+    var peaks: MutableList<PeakInfo> = mutableListOf<PeakInfo>() // detected peaks
 ) : JavaSerializable
 
 @Serializable

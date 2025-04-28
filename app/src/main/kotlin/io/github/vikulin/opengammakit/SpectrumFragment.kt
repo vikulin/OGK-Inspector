@@ -59,14 +59,15 @@ import java.io.InputStreamReader
 import kotlin.text.iterator
 import androidx.core.net.toUri
 import com.github.mikephil.charting.components.Legend
-import io.github.vikulin.opengammakit.math.SpectrumModifier.applySavitzkyGolayFilter
-import io.github.vikulin.opengammakit.math.SpectrumModifier.detectCWTPeaks
+import io.github.vikulin.opengammakit.math.SpectrumModifier
 import io.github.vikulin.opengammakit.math.SpectrumModifier.smartPeakDetect
+import io.github.vikulin.opengammakit.model.EnergySpectrum
 import io.github.vikulin.opengammakit.model.GammaKitEntry
-import io.github.vikulin.opengammakit.model.PeakInfo
 import io.github.vikulin.opengammakit.view.FwhmSpectrumSelectionDialogFragment
 import io.github.vikulin.opengammakit.view.SaveSelectedSpectrumDialogFragment
 import io.github.vikulin.opengammakit.view.SpectrumFileChooserDialogFragment
+import kotlin.math.log10
+import kotlin.math.pow
 
 class SpectrumFragment : SerialConnectionFragment(),
     CalibrationUpdateOrRemoveDialogFragment.CalibrationDialogListener,
@@ -89,6 +90,7 @@ class SpectrumFragment : SerialConnectionFragment(),
     private lateinit var btnSaveSpectrum: ImageButton
     private lateinit var btnToggleFilter: ImageButton
     private lateinit var btnToggleDetectPeak: ImageButton
+    private lateinit var btnToggleLogScale: ImageButton
     private lateinit var clockProgressView: ClockProgressView
     private lateinit var spectrumDataSet: OpenGammaKitData
     // Indicates which graph is currently active for measurements such as Calibration and FWHM
@@ -151,6 +153,7 @@ class SpectrumFragment : SerialConnectionFragment(),
         btnSaveSpectrum = view.findViewById(R.id.btnSaveSpectrumFile)
         btnToggleFilter = view.findViewById(R.id.btnToggleFilter)
         btnToggleDetectPeak = view.findViewById(R.id.btnToggleDetectPeak)
+        btnToggleLogScale = view.findViewById(R.id.btnToggleLogScale)
         clockProgressView = view.findViewById(R.id.clockProgressView)
 
         gestureDetector = GestureDetector(requireContext(), object : GestureDetector.SimpleOnGestureListener() {
@@ -333,6 +336,11 @@ class SpectrumFragment : SerialConnectionFragment(),
                 xAxis.limitLines.removeIf { it.label.startsWith("P@") }
                 isPeakDetected = false
             }
+            updateChartSpectrumData()
+        }
+
+        btnToggleLogScale.setOnClickListener {
+            toggleLogScaleFilter()
             updateChartSpectrumData()
         }
     }
@@ -526,10 +534,13 @@ class SpectrumFragment : SerialConnectionFragment(),
 
     private fun setupChart() {
         val primaryColor = resources.getColor(R.color.colorPrimaryText, null)
-
+        //copy data to outputSpectrum
+        spectrumDataSet.data.mapIndexed { index, entry ->
+            resetSpectrumData(entry.resultData.energySpectrum)
+        }
         // Create LineDataSets from each GammaKitEntry in spectrumDataSet
         val dataSets = spectrumDataSet.data.mapIndexed { index, entry ->
-            val spectrum = entry.resultData.energySpectrum.spectrum
+            val spectrum = entry.resultData.energySpectrum.outputSpectrum
             val entries = spectrum.mapIndexed { ch, count ->
                 Entry(ch.toFloat(), count.toFloat())
             }
@@ -591,7 +602,7 @@ class SpectrumFragment : SerialConnectionFragment(),
     private fun updateChartSpectrumData() {
 
         val dataSets = spectrumDataSet.data.mapIndexed { index, entry ->
-            val spectrum = entry.resultData.energySpectrum.spectrum
+            val spectrum = entry.resultData.energySpectrum.outputSpectrum
             val entries = spectrum.mapIndexed { ch, count ->
                 Entry(ch.toFloat(), count.toFloat())
             }
@@ -620,7 +631,6 @@ class SpectrumFragment : SerialConnectionFragment(),
             setDrawInside(false)
             xEntrySpace = 20f
         }
-
         spectrumChart.data.notifyDataChanged()
         spectrumChart.notifyDataSetChanged()
         spectrumChart.invalidate()
@@ -793,16 +803,17 @@ class SpectrumFragment : SerialConnectionFragment(),
                                     "Test",
                                     "Spectrum size: ${spectrum.size}, counts: $counts"
                                 )
-                                spectrumDataSet.data[deviceSpectrumIndex].
-                                resultData.energySpectrum.spectrum = spectrum
-                                spectrumDataSet.data[deviceSpectrumIndex].
-                                resultData.energySpectrum.validPulseCount =
+                                var energySpectrum = spectrumDataSet.data[deviceSpectrumIndex].
+                                resultData.energySpectrum
+                                energySpectrum.spectrum = spectrum
+                                energySpectrum.validPulseCount =
                                     spectrum.fold(0L) { acc, num -> acc + num }
-                                spectrumDataSet.data[deviceSpectrumIndex].
-                                resultData.energySpectrum.numberOfChannels = spectrum.size
-                                spectrumDataSet.data[deviceSpectrumIndex].
-                                resultData.energySpectrum.measurementTime =
+                                energySpectrum.numberOfChannels = spectrum.size
+                                energySpectrum.measurementTime =
                                     (SystemClock.elapsedRealtime() - measureTimer.base)/1000
+                                // copy spectrum. TODO apply filters and peaks detection
+                                resetSpectrumData(energySpectrum)
+
                                 updateChartSpectrumData()
                             } catch (e: Exception) {
                                 Log.e("Test", "Failed to parse data: ${e.message}")
@@ -840,6 +851,10 @@ class SpectrumFragment : SerialConnectionFragment(),
                                         "Parsed scheduled spectrum number: ${openGammaKitData.data.size}"
                                     )
                                     spectrumDataSet.data[deviceSpectrumIndex] = openGammaKitData.data[deviceSpectrumIndex]
+                                    var energySpectrum = spectrumDataSet.data[deviceSpectrumIndex].
+                                    resultData.energySpectrum
+                                    // copy spectrum. TODO apply filters and peaks detection
+                                    resetSpectrumData(energySpectrum)
                                     updateChartSpectrumData()
                                 } catch (e: Exception) {
                                     Log.e("Test", "Failed to parse data: ${e.message}")
@@ -1477,17 +1492,12 @@ class SpectrumFragment : SerialConnectionFragment(),
         for (entry in spectrumDataSet.data) {
             val energy = entry.resultData.energySpectrum
             if (!energy.filters.contains("SavitzkyGolay")) {
-                //create a copy for next recovery
-                energy.rawSpectrum = energy.spectrum.toList()
                 // Apply filter and add tag
-                applySavitzkyGolayFilter(entry)
+                SpectrumModifier.applySavitzkyGolayFilter(entry)
                 entry.resultData.energySpectrum.filters.add("SavitzkyGolay")
             } else {
-                if (energy.filters.contains("SavitzkyGolay")) {
-                    // Restore raw spectrum and remove tag
-                    energy.spectrum = energy.rawSpectrum ?: energy.spectrum
-                    energy.filters.removeIf { it=="SavitzkyGolay" }
-                }
+                energy.filters.clear()
+                resetSpectrumData(energy)
             }
         }
     }
@@ -1495,22 +1505,69 @@ class SpectrumFragment : SerialConnectionFragment(),
     private fun applySavitzkyGolayFilter(apply: Boolean) {
         for (entry in spectrumDataSet.data) {
             val energy = entry.resultData.energySpectrum
-
             if (apply) {
+                for(filter in energy.filters){
+                    when(filter) {
+                        "LogScale" -> {
+                            applyLogScale(entry, true)
+                        }
+                    }
+                }
                 if (!energy.filters.contains("SavitzkyGolay")) {
-                    //create a copy for next recovery
-                    energy.rawSpectrum = energy.spectrum.toList()
                     // Apply filter and add tag
-                    applySavitzkyGolayFilter(entry)
+                    SpectrumModifier.applySavitzkyGolayFilter(entry)
                     entry.resultData.energySpectrum.filters.add("SavitzkyGolay")
                 }
             } else {
-                if (energy.filters.contains("SavitzkyGolay")) {
-                    // Restore raw spectrum and remove tag
-                    energy.spectrum = energy.rawSpectrum ?: energy.spectrum
-                    energy.filters.removeIf { it=="SavitzkyGolay" }
+                energy.filters.clear()
+                resetSpectrumData(energy)
+            }
+        }
+    }
+
+    private fun resetSpectrumData(energySpectrum: EnergySpectrum){
+        energySpectrum.outputSpectrum =
+            energySpectrum.spectrum.map { count ->
+                count.toDouble()
+            }.toMutableList()
+        // TODO apply it here when filters left
+    }
+
+    private fun toggleLogScaleFilter(){
+        for (entry in spectrumDataSet.data) {
+            val energy = entry.resultData.energySpectrum
+            if (!energy.filters.contains("LogScale")) {
+                // Apply filter and add tag
+                applyLogScale(entry, true)
+            } else {
+                applyLogScale(entry, false)
+            }
+        }
+    }
+
+    fun applyLogScale(entry: GammaKitEntry, apply: Boolean) {
+        entry.resultData.energySpectrum.applyLogScale(apply)
+    }
+
+    fun EnergySpectrum.applyLogScale(apply: Boolean) {
+        if (apply) {
+            for(filter in filters){
+                when(filter) {
+                    "SavitzkyGolay" -> {
+                        applySavitzkyGolayFilter(true)
+                    }
                 }
             }
+            if (!filters.contains("LogScale")) {
+                outputSpectrum = outputSpectrum.map { count ->
+                    val adjusted = if (count > 1L) count.toDouble() else 1.0
+                    log10(adjusted)
+                }.toMutableList()
+                filters.add("LogScale")
+            }
+        } else {
+            filters.clear()
+            resetSpectrumData(this)
         }
     }
 

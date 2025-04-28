@@ -240,6 +240,24 @@
                     app:srcCompat="@drawable/ic_peak_detection" />
             </com.google.android.material.card.MaterialCardView>
 
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginVertical="6dp"
+                app:cardElevation="4dp"
+                app:cardBackgroundColor="@android:color/transparent"
+                app:strokeWidth="0dp">
+
+                <ImageButton
+                    android:id="@+id/btnToggleLogScale"
+                    android:layout_width="@dimen/buttons_size"
+                    android:layout_height="@dimen/buttons_size"
+                    android:background="?selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/log_scale"
+                    app:tint="@color/colorPrimaryText"
+                    app:srcCompat="@drawable/ic_logarithm" />
+            </com.google.android.material.card.MaterialCardView>
+
         </LinearLayout>
     </ScrollView>
 
