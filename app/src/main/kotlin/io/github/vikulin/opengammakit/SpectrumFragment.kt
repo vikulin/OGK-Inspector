@@ -67,7 +67,6 @@ import io.github.vikulin.opengammakit.view.FwhmSpectrumSelectionDialogFragment
 import io.github.vikulin.opengammakit.view.SaveSelectedSpectrumDialogFragment
 import io.github.vikulin.opengammakit.view.SpectrumFileChooserDialogFragment
 import kotlin.math.log10
-import kotlin.math.pow
 
 class SpectrumFragment : SerialConnectionFragment(),
     CalibrationUpdateOrRemoveDialogFragment.CalibrationDialogListener,
@@ -536,7 +535,9 @@ class SpectrumFragment : SerialConnectionFragment(),
         val primaryColor = resources.getColor(R.color.colorPrimaryText, null)
         //copy data to outputSpectrum
         spectrumDataSet.data.mapIndexed { index, entry ->
-            resetSpectrumData(entry.resultData.energySpectrum)
+            if(entry.resultData.energySpectrum.filters.isEmpty()){
+                resetSpectrumData(entry.resultData.energySpectrum)
+            }
         }
         // Create LineDataSets from each GammaKitEntry in spectrumDataSet
         val dataSets = spectrumDataSet.data.mapIndexed { index, entry ->
@@ -1493,7 +1494,12 @@ class SpectrumFragment : SerialConnectionFragment(),
             val energy = entry.resultData.energySpectrum
             if (!energy.filters.contains("SavitzkyGolay")) {
                 // Apply filter and add tag
-                SpectrumModifier.applySavitzkyGolayFilter(entry)
+                val inputSpectrum = if(energy.filters.isNotEmpty()) {
+                    entry.resultData.energySpectrum.outputSpectrum.map { it.toDouble() }
+                } else {
+                    entry.resultData.energySpectrum.spectrum.map { it.toDouble() }
+                }
+                SpectrumModifier.applySavitzkyGolayFilter(inputSpectrum, entry)
                 entry.resultData.energySpectrum.filters.add("SavitzkyGolay")
             } else {
                 energy.filters.clear()
@@ -1506,16 +1512,14 @@ class SpectrumFragment : SerialConnectionFragment(),
         for (entry in spectrumDataSet.data) {
             val energy = entry.resultData.energySpectrum
             if (apply) {
-                for(filter in energy.filters){
-                    when(filter) {
-                        "LogScale" -> {
-                            applyLogScale(entry, true)
-                        }
-                    }
-                }
                 if (!energy.filters.contains("SavitzkyGolay")) {
                     // Apply filter and add tag
-                    SpectrumModifier.applySavitzkyGolayFilter(entry)
+                    val inputSpectrum = if(energy.filters.isNotEmpty()) {
+                            entry.resultData.energySpectrum.outputSpectrum.map { it.toDouble() }
+                        } else {
+                            entry.resultData.energySpectrum.spectrum.map { it.toDouble() }
+                        }
+                    SpectrumModifier.applySavitzkyGolayFilter(inputSpectrum, entry)
                     entry.resultData.energySpectrum.filters.add("SavitzkyGolay")
                 }
             } else {
@@ -1530,7 +1534,6 @@ class SpectrumFragment : SerialConnectionFragment(),
             energySpectrum.spectrum.map { count ->
                 count.toDouble()
             }.toMutableList()
-        // TODO apply it here when filters left
     }
 
     private fun toggleLogScaleFilter(){
@@ -1551,15 +1554,13 @@ class SpectrumFragment : SerialConnectionFragment(),
 
     fun EnergySpectrum.applyLogScale(apply: Boolean) {
         if (apply) {
-            for(filter in filters){
-                when(filter) {
-                    "SavitzkyGolay" -> {
-                        applySavitzkyGolayFilter(true)
-                    }
-                }
-            }
             if (!filters.contains("LogScale")) {
-                outputSpectrum = outputSpectrum.map { count ->
+                val inputSpectrum = if(filters.isNotEmpty()) {
+                    outputSpectrum.map { it.toDouble() }
+                } else {
+                    spectrum.map { it.toDouble() }
+                }
+                outputSpectrum = inputSpectrum.map { count ->
                     val adjusted = if (count > 1L) count.toDouble() else 1.0
                     log10(adjusted)
                 }.toMutableList()

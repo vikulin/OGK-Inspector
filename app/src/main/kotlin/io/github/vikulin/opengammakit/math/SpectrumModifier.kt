@@ -58,8 +58,8 @@ object SpectrumModifier {
         return result
     }
 
-    fun applySavitzkyGolayFilter(entry: GammaKitEntry) {
-            val spectrum = entry.resultData.energySpectrum.spectrum.map { it.toDouble() }
+    fun applySavitzkyGolayFilter(spectrum: List<Double>, entry: GammaKitEntry) {
+
             if (spectrum.size < 31) return // Too small for filtering
             val smoothed = savitzkyGolay(spectrum.toDoubleArray(), windowSize = 31, polyOrder = 3)
             entry.resultData.energySpectrum.outputSpectrum = smoothed.map { it }.toMutableList()
