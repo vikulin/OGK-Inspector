@@ -1495,7 +1495,7 @@ class SpectrumFragment : SerialConnectionFragment(),
             if (!energy.filters.contains("SavitzkyGolay")) {
                 // Apply filter and add tag
                 val inputSpectrum = if(energy.filters.isNotEmpty()) {
-                    entry.resultData.energySpectrum.outputSpectrum.map { it.toDouble() }
+                    entry.resultData.energySpectrum.outputSpectrum
                 } else {
                     entry.resultData.energySpectrum.spectrum.map { it.toDouble() }
                 }
@@ -1515,7 +1515,7 @@ class SpectrumFragment : SerialConnectionFragment(),
                 if (!energy.filters.contains("SavitzkyGolay")) {
                     // Apply filter and add tag
                     val inputSpectrum = if(energy.filters.isNotEmpty()) {
-                            entry.resultData.energySpectrum.outputSpectrum.map { it.toDouble() }
+                            entry.resultData.energySpectrum.outputSpectrum
                         } else {
                             entry.resultData.energySpectrum.spectrum.map { it.toDouble() }
                         }
@@ -1556,7 +1556,7 @@ class SpectrumFragment : SerialConnectionFragment(),
         if (apply) {
             if (!filters.contains("LogScale")) {
                 val inputSpectrum = if(filters.isNotEmpty()) {
-                    outputSpectrum.map { it.toDouble() }
+                    outputSpectrum
                 } else {
                     spectrum.map { it.toDouble() }
                 }
