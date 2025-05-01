@@ -63,5 +63,5 @@ Actively developed. Contributions, feature requests, and bug reports are welcome
 
 <p align="center">
   <br>
-  <img alt="OGK Inspector Spectrum screen view" title="OGK Inspector Spectrum screen view" width="300px" src="docs/Am-241-10m.png">
+  <img alt="OGK Inspector Spectrum screen view" title="OGK Inspector Spectrum screen view" width="300px" src="docs/Am-241-10m-v.png">
 </p>
