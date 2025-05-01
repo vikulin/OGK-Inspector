@@ -570,6 +570,7 @@ class SpectrumFragment : SerialConnectionFragment(),
             }
             axisRight.isEnabled = true
             axisLeft.textColor = primaryColor
+            axisRight.textColor = primaryColor
             description = Description().apply {
                 text = "Channel vs Counts"
                 textColor = primaryColor
@@ -687,6 +688,7 @@ class SpectrumFragment : SerialConnectionFragment(),
                 }
             }
             axisLeft.textColor = primaryColor
+            axisRight.textColor = primaryColor
             description = Description().apply {
                 text = "Counts vs Energy"
                 textColor = primaryColor
@@ -1118,17 +1120,21 @@ class SpectrumFragment : SerialConnectionFragment(),
     }
 
     fun saveChartScreenshot(context: Context, spectrumChart: View, tableContainer: View) {
-        // Create a Bitmap capturing both the spectrumChart and tableContainer
+        val width = spectrumChart.width
         val combinedHeight = spectrumChart.height + tableContainer.height
-        val bitmap = createBitmap(spectrumChart.width, combinedHeight)
+
+        // Create a bitmap with ARGB_8888 to support alpha (even though we’ll override it)
+        val bitmap = Bitmap.createBitmap(width, combinedHeight, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
 
-        // Draw both views onto the Canvas
+        // Fill the canvas with black before drawing the views
+        canvas.drawColor(Color.BLACK)
+
+        // Draw the spectrum chart and table container
         spectrumChart.draw(canvas)
-        canvas.translate(0f, spectrumChart.height.toFloat()) // Move down for table
+        canvas.translate(0f, spectrumChart.height.toFloat())
         tableContainer.draw(canvas)
 
-        // Use MediaStore to save the image
         val contentValues = ContentValues().apply {
             put(MediaStore.Images.Media.DISPLAY_NAME, "chart_screenshot.png")
             put(MediaStore.Images.Media.MIME_TYPE, "image/png")
@@ -1139,15 +1145,11 @@ class SpectrumFragment : SerialConnectionFragment(),
         val imageUri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
 
         if (imageUri != null) {
-            val outputStream: OutputStream? = contentResolver.openOutputStream(imageUri)
-            outputStream?.use {
-                bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
+            contentResolver.openOutputStream(imageUri)?.use { outputStream ->
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
             }
-
-            // Show success toast
             Toast.makeText(context, "Screenshot saved successfully!", Toast.LENGTH_SHORT).show()
         } else {
-            // Show error toast
             Toast.makeText(context, "Error saving screenshot!", Toast.LENGTH_SHORT).show()
         }
     }
@@ -1180,6 +1182,9 @@ class SpectrumFragment : SerialConnectionFragment(),
         val combinedHeight = spectrumChart.height + tableContainer.height
         val bitmap = createBitmap(spectrumChart.width, combinedHeight)
         val canvas = Canvas(bitmap)
+
+        // Fill the canvas with black before drawing the views
+        canvas.drawColor(Color.BLACK)
 
         // Draw both views onto the Canvas
         spectrumChart.draw(canvas)
