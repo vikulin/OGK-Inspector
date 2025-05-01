@@ -148,6 +148,7 @@ class CounterFragment : SerialConnectionFragment(),
                     val touchPoint = getTouchPoint(e.y)
                     threshold = touchPoint.toInt()
                     setCounterThreshold(threshold)
+                    saveThreshold()
                     chooseThreshold = false
                 }
                 return true
@@ -318,11 +319,6 @@ class CounterFragment : SerialConnectionFragment(),
         mediaPlayer = null
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        saveThreshold()
-    }
-
     override fun onDestroyView() {
         super.onDestroyView()
         alarmJob?.cancel()
@@ -333,6 +329,7 @@ class CounterFragment : SerialConnectionFragment(),
     override fun onSave(counterThreshold: Int) {
         threshold = counterThreshold
         setCounterThreshold(threshold)
+        saveThreshold()
     }
 
     override fun onChoose() {
