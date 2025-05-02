@@ -323,8 +323,19 @@ class CounterFragment : SerialConnectionFragment(),
     override fun onDestroyView() {
         super.onDestroyView()
         alarmJob?.cancel()
-        mediaPlayer?.stop()
-        mediaPlayer?.release()
+        mediaPlayer?.let {
+            try {
+                if (it.isPlaying) {
+                    it.stop()
+                }
+            } catch (e: IllegalStateException) {
+                // MediaPlayer was not in a valid state
+                e.printStackTrace()
+            } finally {
+                it.release()
+            }
+        }
+        mediaPlayer = null
         view?.keepScreenOn = false
     }
 

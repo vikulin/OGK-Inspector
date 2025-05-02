@@ -7,6 +7,7 @@ import android.content.SharedPreferences
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
@@ -105,6 +106,7 @@ class SpectrumFragment : SerialConnectionFragment(),
     private var verticalCalibrationLineList = mutableListOf<Pair<LimitLine, Pair<Double, EmissionSource>>>()
     private val calibrationPreferencesKey = "calibration_data_"
     private lateinit var sharedPreferences: SharedPreferences
+    private var mediaPlayer: MediaPlayer? = null
 
     private val zeroedData: String by lazy {
         requireContext().assets.open("spectrum_zeroed.json").bufferedReader().use { it.readText() }
@@ -138,7 +140,7 @@ class SpectrumFragment : SerialConnectionFragment(),
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-
+        view.keepScreenOn = true
         spectrumChart = view.findViewById(R.id.spectrumChart)
         measureTimer = view.findViewById(R.id.measureTimer)
         elapsedTime = view.findViewById(R.id.remainingTime)
@@ -249,6 +251,7 @@ class SpectrumFragment : SerialConnectionFragment(),
             measureTimer.stop()
             val spectrumCommand = OpenGammaKitCommands().setOut("off").toByteArray()
             super.send(spectrumCommand)
+            view.keepScreenOn = false
         }
 
         btnFwhm.setOnClickListener {
@@ -262,6 +265,7 @@ class SpectrumFragment : SerialConnectionFragment(),
                 val spectrumCommand = OpenGammaKitCommands().setOut("off").toByteArray()
                 super.send(spectrumCommand)
             }
+            view.keepScreenOn = false
         }
 
         btnLive.setOnClickListener {
@@ -938,6 +942,19 @@ class SpectrumFragment : SerialConnectionFragment(),
 
     override fun onDestroyView() {
         super.onDestroyView()
+        mediaPlayer?.let {
+            try {
+                if (it.isPlaying) {
+                    it.stop()
+                }
+            } catch (e: IllegalStateException) {
+                // MediaPlayer was not in a valid state
+                e.printStackTrace()
+            } finally {
+                it.release()
+            }
+        }
+        mediaPlayer = null
         view?.keepScreenOn = false
     }
 
@@ -1469,6 +1486,14 @@ class SpectrumFragment : SerialConnectionFragment(),
             val readCommand = OpenGammaKitCommands().readSpectrum().toByteArray()
             super.send(readCommand)
             view?.keepScreenOn = false
+
+            if (mediaPlayer == null) {
+                mediaPlayer = MediaPlayer.create(requireContext(), R.raw.success_alarm)
+                mediaPlayer?.isLooping = false
+            }
+            if (mediaPlayer?.isPlaying == false) {
+                mediaPlayer?.start()
+            }
         }
     }
 
