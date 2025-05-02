@@ -142,6 +142,7 @@ class CounterFragment : SerialConnectionFragment(),
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        view.keepScreenOn = true
         gestureDetector = GestureDetector(requireContext(), object : GestureDetector.SimpleOnGestureListener() {
             override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
                 if(chooseThreshold) {
@@ -324,6 +325,7 @@ class CounterFragment : SerialConnectionFragment(),
         alarmJob?.cancel()
         mediaPlayer?.stop()
         mediaPlayer?.release()
+        view?.keepScreenOn = false
     }
 
     override fun onSave(counterThreshold: Int) {

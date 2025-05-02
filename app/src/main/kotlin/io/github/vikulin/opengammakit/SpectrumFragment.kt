@@ -232,6 +232,7 @@ class SpectrumFragment : SerialConnectionFragment(),
                 // If no URI and no saved state, fallback to defaults
                 initChart(savedInstanceState)
                 setupChart()
+                view.keepScreenOn = true
             }
         }
 
@@ -279,6 +280,7 @@ class SpectrumFragment : SerialConnectionFragment(),
                 super.send(resetCommand)
                 val spectrumCommand = OpenGammaKitCommands().setOut("spectrum").toByteArray()
                 super.send(spectrumCommand)
+                view.keepScreenOn = true
             }
         }
 
@@ -934,6 +936,11 @@ class SpectrumFragment : SerialConnectionFragment(),
         saveCalibrationData()
     }
 
+    override fun onDestroyView() {
+        super.onDestroyView()
+        view?.keepScreenOn = false
+    }
+
     private fun showPeakResolution(tapX: Float) {
         val closestEntry = getValuesByTouchPoint(selectedFwhmMeasurementIndex, tapX)
         if (closestEntry != null) {
@@ -1430,6 +1437,7 @@ class SpectrumFragment : SerialConnectionFragment(),
 
     override fun onSpectrumRecordingTime(time: Long) {
         measureMode = SpectrumMeasureMode.Scheduled
+        view?.keepScreenOn = true
         // **Reset & Start Chronometer**
         measureTimer.base = SystemClock.elapsedRealtime() // Reset timer initially
         measureTimer.start()
@@ -1460,7 +1468,7 @@ class SpectrumFragment : SerialConnectionFragment(),
 
             val readCommand = OpenGammaKitCommands().readSpectrum().toByteArray()
             super.send(readCommand)
-
+            view?.keepScreenOn = false
         }
     }
 
