@@ -62,7 +62,8 @@ import androidx.core.net.toUri
 import com.github.mikephil.charting.components.Legend
 import io.github.vikulin.opengammakit.math.SpectrumModifier
 import io.github.vikulin.opengammakit.math.SpectrumModifier.smartPeakDetect
-import io.github.vikulin.opengammakit.model.EnergySpectrum
+import io.github.vikulin.opengammakit.model.DerivedSpectrumEntry
+import io.github.vikulin.opengammakit.model.ModifierInfo
 import io.github.vikulin.opengammakit.model.GammaKitEntry
 import io.github.vikulin.opengammakit.view.FwhmSpectrumSelectionDialogFragment
 import io.github.vikulin.opengammakit.view.SaveSelectedSpectrumDialogFragment
@@ -355,9 +356,9 @@ class SpectrumFragment : SerialConnectionFragment(),
         xAxis.limitLines.removeIf { it.label.startsWith("P@") }
 
         // Assume you are working with spectrum index = 0
-        val energySpectrum = spectrumDataSet.data[0].resultData.energySpectrum
-        val peaks = energySpectrum.peaks
-        if (peaks.isEmpty()) return
+        val energySpectrum = spectrumDataSet.derivedSpectra[0]
+        val peaks = energySpectrum?.peaks
+        if (peaks.isNullOrEmpty()) return
 
         val sortedCalibrationList = verticalCalibrationLineList.sortedBy { it.second.first }
 
@@ -540,24 +541,22 @@ class SpectrumFragment : SerialConnectionFragment(),
     private fun setupChart() {
         val primaryColor = resources.getColor(R.color.colorPrimaryText, null)
         //copy data to outputSpectrum
-        spectrumDataSet.data.mapIndexed { index, entry ->
-            if(entry.resultData.energySpectrum.filters.isEmpty()){
-                resetSpectrumData(entry.resultData.energySpectrum)
-            }
+        if(spectrumDataSet.derivedSpectra.isEmpty()){
+            resetSpectrumData(spectrumDataSet)
         }
         // Create LineDataSets from each GammaKitEntry in spectrumDataSet
-        val dataSets = spectrumDataSet.data.mapIndexed { index, entry ->
-            val spectrum = entry.resultData.energySpectrum.outputSpectrum
+        val dataSets = spectrumDataSet.derivedSpectra.map { entry ->
+            val spectrum = entry.value.resultSpectrum
             val entries = spectrum.mapIndexed { ch, count ->
                 Entry(ch.toFloat(), count.toFloat())
             }
-            val label = getSpectrumLabel(index, entry)
+            val label = getSpectrumLabel(entry.key, spectrumDataSet.data[entry.key])
             LineDataSet(entries, label).apply {
                 mode = LineDataSet.Mode.CUBIC_BEZIER
                 lineWidth = 1.5f
                 setDrawCircles(false)
                 setDrawValues(false)
-                color = getLineColor(requireContext(), index)
+                color = getLineColor(requireContext(), entry.key)
             }
         }
 
@@ -609,18 +608,18 @@ class SpectrumFragment : SerialConnectionFragment(),
 
     private fun updateChartSpectrumData() {
 
-        val dataSets = spectrumDataSet.data.mapIndexed { index, entry ->
-            val spectrum = entry.resultData.energySpectrum.outputSpectrum
+        val dataSets = spectrumDataSet.derivedSpectra.map { entry ->
+            val spectrum = entry.value.resultSpectrum
             val entries = spectrum.mapIndexed { ch, count ->
                 Entry(ch.toFloat(), count.toFloat())
             }
-            val label = getSpectrumLabel(index, entry)
+            val label = getSpectrumLabel(entry.key, spectrumDataSet.data[entry.key])
             LineDataSet(entries, label).apply {
                 mode = LineDataSet.Mode.CUBIC_BEZIER
                 lineWidth = 1.5f
                 setDrawCircles(false)
                 setDrawValues(false)
-                color = getLineColor(requireContext(), index)
+                color = getLineColor(requireContext(), entry.key)
             }
         }
 
@@ -820,8 +819,8 @@ class SpectrumFragment : SerialConnectionFragment(),
                                 energySpectrum.numberOfChannels = spectrum.size
                                 energySpectrum.measurementTime =
                                     (SystemClock.elapsedRealtime() - measureTimer.base)/1000
-                                // copy spectrum. TODO apply filters and peaks detection
-                                resetSpectrumData(energySpectrum)
+                                // copy spectrum. TODO apply modifiers and peaks detection
+                                resetSpectrumData(spectrumDataSet)
 
                                 updateChartSpectrumData()
                             } catch (e: Exception) {
@@ -860,10 +859,8 @@ class SpectrumFragment : SerialConnectionFragment(),
                                         "Parsed scheduled spectrum number: ${openGammaKitData.data.size}"
                                     )
                                     spectrumDataSet.data[deviceSpectrumIndex] = openGammaKitData.data[deviceSpectrumIndex]
-                                    var energySpectrum = spectrumDataSet.data[deviceSpectrumIndex].
-                                    resultData.energySpectrum
-                                    // copy spectrum. TODO apply filters and peaks detection
-                                    resetSpectrumData(energySpectrum)
+                                    // copy spectrum. TODO apply modifiers and peaks detection
+                                    resetSpectrumData(spectrumDataSet)
                                     updateChartSpectrumData()
                                 } catch (e: Exception) {
                                     Log.e("Test", "Failed to parse data: ${e.message}")
@@ -1517,96 +1514,149 @@ class SpectrumFragment : SerialConnectionFragment(),
             index in selectedIndexes
         }.toMutableList()
 
-        // Create a new OpenGammaKitData with the same schema version and filtered data
-        val filteredData = OpenGammaKitData(
+        // Create a new OpenGammaKitData with the same schema version and modified data
+        val modifiedData = OpenGammaKitData(
             schemaVersion = spectrumDataSet.schemaVersion,
             data = selectedEntries
         )
 
-        // Call save method with the filtered data
-        saveGammaKitDataAsJson(requireContext(), filteredData)
+        // Call save method with the modified data
+        saveGammaKitDataAsJson(requireContext(), modifiedData)
     }
 
-    private fun toggleSavitzkyGolayFilter(){
-        for (entry in spectrumDataSet.data) {
-            val energy = entry.resultData.energySpectrum
-            if (!energy.filters.contains("SavitzkyGolay")) {
-                // Apply filter and add tag
-                val inputSpectrum = if(energy.filters.isNotEmpty()) {
-                    entry.resultData.energySpectrum.outputSpectrum
-                } else {
-                    entry.resultData.energySpectrum.spectrum.map { it.toDouble() }
-                }
-                SpectrumModifier.applySavitzkyGolayFilter(inputSpectrum, entry)
-                entry.resultData.energySpectrum.filters.add("SavitzkyGolay")
-            } else {
-                energy.filters.clear()
-                resetSpectrumData(energy)
+    private fun toggleSavitzkyGolayFilter() {
+        val alreadyModified = alreadyModified("SavitzkyGolay")
+
+        if (!alreadyModified) {
+            // Apply Savitzky-Golay modifier for each original spectrum
+            spectrumDataSet.data.forEachIndexed { index, entry ->
+                val inputSpectrum = entry.resultData.energySpectrum.spectrum.map { it.toDouble() }
+
+                val modified = SpectrumModifier.applySavitzkyGolayFilter(inputSpectrum)
+
+                val derivedEntry = DerivedSpectrumEntry(
+                    name = "${entry.deviceData.deviceName} - SavitzkyGolay",
+                    resultSpectrum = modified,
+                    modifiers = mutableListOf(
+                        ModifierInfo(
+                            modifierName = "SavitzkyGolay",
+                            inputIndexes = listOf(index)
+                        )
+                    )
+                )
+
+                spectrumDataSet.derivedSpectra[index] = derivedEntry
             }
+        } else {
+            // Reset: clear all derived spectra and add raw versions only
+            resetSpectrumData(spectrumDataSet)
         }
+    }
+
+    private fun alreadyModified(modifierName: String): Boolean {
+        val alreadyModified = spectrumDataSet.derivedSpectra.any { derived ->
+            derived.value.modifiers.any { it.modifierName == modifierName}
+        }
+        return alreadyModified
+    }
+
+    private fun alreadyModified(modifierName: String, index: Int): Boolean {
+        val alreadyModified = spectrumDataSet.derivedSpectra.any { derived ->
+            derived.value.modifiers.any { it.modifierName == modifierName && it.inputIndexes == listOf(index)}
+        }
+        return alreadyModified
     }
 
     private fun applySavitzkyGolayFilter(apply: Boolean) {
-        for (entry in spectrumDataSet.data) {
-            val energy = entry.resultData.energySpectrum
-            if (apply) {
-                if (!energy.filters.contains("SavitzkyGolay")) {
-                    // Apply filter and add tag
-                    val inputSpectrum = if(energy.filters.isNotEmpty()) {
-                            entry.resultData.energySpectrum.outputSpectrum
-                        } else {
-                            entry.resultData.energySpectrum.spectrum.map { it.toDouble() }
-                        }
-                    SpectrumModifier.applySavitzkyGolayFilter(inputSpectrum, entry)
-                    entry.resultData.energySpectrum.filters.add("SavitzkyGolay")
-                }
-            } else {
-                energy.filters.clear()
-                resetSpectrumData(energy)
-            }
-        }
-    }
-
-    private fun resetSpectrumData(energySpectrum: EnergySpectrum){
-        energySpectrum.outputSpectrum =
-            energySpectrum.spectrum.map { count ->
-                count.toDouble()
-            }.toMutableList()
-    }
-
-    private fun toggleLogScaleFilter(){
-        for (entry in spectrumDataSet.data) {
-            val energy = entry.resultData.energySpectrum
-            if (!energy.filters.contains("LogScale")) {
-                // Apply filter and add tag
-                applyLogScale(entry, true)
-            } else {
-                applyLogScale(entry, false)
-            }
-        }
-    }
-
-    fun applyLogScale(entry: GammaKitEntry, apply: Boolean) {
-        entry.resultData.energySpectrum.applyLogScale(apply)
-    }
-
-    fun EnergySpectrum.applyLogScale(apply: Boolean) {
         if (apply) {
-            if (!filters.contains("LogScale")) {
-                val inputSpectrum = if(filters.isNotEmpty()) {
-                    outputSpectrum
-                } else {
-                    spectrum.map { it.toDouble() }
-                }
-                outputSpectrum = inputSpectrum.map { count ->
-                    val adjusted = if (count > 1L) count.toDouble() else 1.0
-                    log10(adjusted)
-                }.toMutableList()
-                filters.add("LogScale")
+            spectrumDataSet.data.forEachIndexed { index, entry ->
+                // Skip if a SavitzkyGolay-derived spectrum already exists for this input
+                val alreadyModified = alreadyModified("SavitzkyGolay", index)
+
+                if (alreadyModified) return@forEachIndexed
+
+                val inputSpectrum = entry.resultData.energySpectrum.spectrum.map { it.toDouble() }
+
+                val modified = SpectrumModifier.applySavitzkyGolayFilter(inputSpectrum)
+
+                val derivedEntry = DerivedSpectrumEntry(
+                    name = "${entry.deviceData.deviceName} - SavitzkyGolay",
+                    resultSpectrum = modified,
+                    modifiers = mutableListOf(
+                        ModifierInfo(
+                            modifierName = "SavitzkyGolay",
+                            inputIndexes = listOf(index)
+                        )
+                    )
+                )
+
+                spectrumDataSet.derivedSpectra[index] = derivedEntry
             }
         } else {
-            filters.clear()
-            resetSpectrumData(this)
+            // Remove all derived spectra and replace with raw versions
+            resetSpectrumData(spectrumDataSet)
+        }
+    }
+
+    private fun resetSpectrumData(dataSet: OpenGammaKitData){
+        // Remove all derived spectra and replace with raw versions
+        dataSet.derivedSpectra.clear()
+        dataSet.data.forEachIndexed { index, entry ->
+            val raw = entry.resultData.energySpectrum.spectrum.map { it.toDouble() }
+
+            val baseEntry = DerivedSpectrumEntry(
+                name = "Raw",
+                resultSpectrum = raw,
+                modifiers = mutableListOf() // Now empty
+            )
+
+            spectrumDataSet.derivedSpectra[index] = baseEntry
+        }
+    }
+
+    private fun toggleLogScaleFilter() {
+        val alreadyModified = alreadyModified("LogScale")
+
+        if (!alreadyModified) {
+            spectrumDataSet.data.forEachIndexed { index, entry ->
+                applyLogScale(spectrumDataSet, entry, index, apply = true)
+            }
+        } else {
+            // Reset: clear all derived spectra and add raw versions only
+            resetSpectrumData(spectrumDataSet)
+        }
+    }
+
+    fun applyLogScale(
+        dataSet: OpenGammaKitData,
+        entry: GammaKitEntry,
+        index: Int,
+        apply: Boolean
+    ) {
+        if (apply) {
+
+            val alreadyModified = alreadyModified("LogScale", index)
+
+            if (!alreadyModified) {
+                val inputSpectrum = entry.resultData.energySpectrum.spectrum.map { it.toDouble() }
+                val logScaled = inputSpectrum.map { count ->
+                    val adjusted = if (count > 1.0) count else 1.0
+                    log10(adjusted)
+                }
+
+                val derivedEntry = DerivedSpectrumEntry(
+                    name = "${entry.deviceData.deviceName} - LogScale",
+                    resultSpectrum = logScaled,
+                    modifiers = mutableListOf(
+                        ModifierInfo(
+                            modifierName = "LogScale",
+                            inputIndexes = listOf(index)
+                        )
+                    )
+                )
+
+                spectrumDataSet.derivedSpectra[index] = derivedEntry
+            }
         }
     }
 

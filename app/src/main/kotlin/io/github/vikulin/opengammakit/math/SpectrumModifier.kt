@@ -1,6 +1,5 @@
 package io.github.vikulin.opengammakit.math
 
-import io.github.vikulin.opengammakit.model.GammaKitEntry
 import io.github.vikulin.opengammakit.model.OpenGammaKitData
 import io.github.vikulin.opengammakit.model.PeakInfo
 import org.apache.commons.math3.linear.Array2DRowRealMatrix
@@ -58,11 +57,10 @@ object SpectrumModifier {
         return result
     }
 
-    fun applySavitzkyGolayFilter(spectrum: List<Double>, entry: GammaKitEntry) {
-
-            if (spectrum.size < 31) return // Too small for filtering
-            val smoothed = savitzkyGolay(spectrum.toDoubleArray(), windowSize = 31, polyOrder = 3)
-            entry.resultData.energySpectrum.outputSpectrum = smoothed.map { it }.toMutableList()
+    fun applySavitzkyGolayFilter(spectrum: List<Double>): List<Double> {
+        if (spectrum.size < 31) return spectrum // Too small for filtering, return unchanged
+        val smoothed = savitzkyGolay(spectrum.toDoubleArray(), windowSize = 31, polyOrder = 3)
+        return smoothed.toList()
     }
 
     // Public method to detect peaks in selected spectrums of a dataset
@@ -77,7 +75,8 @@ object SpectrumModifier {
         val detectedPeaks = mutableListOf<PeakInfo>()
 
         for (spectrumIndex in indexesToAnalyze) {
-            val spectrum = dataSet.data[spectrumIndex].resultData.energySpectrum.outputSpectrum.map { it.toDouble() }
+            val spectrum = dataSet.derivedSpectra[spectrumIndex]?.resultSpectrum
+            if(spectrum.isNullOrEmpty()) return detectedPeaks
             val correctedSpectrum = if (estimateBaseline) removeBaseline(spectrum) else spectrum
 
             val waveletWidthList = waveletWidths.toList()
@@ -117,7 +116,7 @@ object SpectrumModifier {
             val groupedPeaks = groupPeaksByProximity(localMaxima, peakProximityThreshold)
 
             detectedPeaks.addAll(groupedPeaks)
-            dataSet.data[spectrumIndex].resultData.energySpectrum.peaks.addAll(groupedPeaks)
+            dataSet.derivedSpectra[spectrumIndex]?.peaks?.addAll(groupedPeaks)
         }
 
         return detectedPeaks
