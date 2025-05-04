@@ -1514,10 +1514,16 @@ class SpectrumFragment : SerialConnectionFragment(),
             index in selectedIndexes
         }.toMutableList()
 
+        // Create a submap of derivedSpectra for selected indexes
+        val selectedDerivedSpectra = spectrumDataSet.derivedSpectra
+            .filterKeys { it in selectedIndexes }
+            .toMutableMap()
+
         // Create a new OpenGammaKitData with the same schema version and modified data
         val modifiedData = OpenGammaKitData(
             schemaVersion = spectrumDataSet.schemaVersion,
-            data = selectedEntries
+            data = selectedEntries,
+            derivedSpectra = selectedDerivedSpectra
         )
 
         // Call save method with the modified data

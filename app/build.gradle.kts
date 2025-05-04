@@ -12,8 +12,8 @@ android {
         applicationId = "io.github.vikulin.opengammakit"
         minSdk = 24
         targetSdk = 35
-        versionCode = 18
-        versionName = "1.1.8"
+        versionCode = 19
+        versionName = "1.1.8.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         setProperty("archivesBaseName", "ogk-inspector-$versionName")
     }
