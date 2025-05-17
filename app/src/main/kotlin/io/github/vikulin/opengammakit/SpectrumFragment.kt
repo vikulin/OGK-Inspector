@@ -67,6 +67,7 @@ import io.github.vikulin.opengammakit.model.ModifierInfo
 import io.github.vikulin.opengammakit.model.GammaKitEntry
 import io.github.vikulin.opengammakit.view.FwhmSpectrumSelectionDialogFragment
 import io.github.vikulin.opengammakit.view.SaveSelectedSpectrumDialogFragment
+import io.github.vikulin.opengammakit.view.SaveSpectrumDataIntoFileDialogFragment
 import io.github.vikulin.opengammakit.view.SpectrumFileChooserDialogFragment
 import kotlin.math.log10
 
@@ -76,7 +77,8 @@ class SpectrumFragment : SerialConnectionFragment(),
     SpectrumRecordingTimeDialogFragment.ChooseSpectrumRecordingTimeDialogListener,
     FwhmSpectrumSelectionDialogFragment.ChooseSpectrumDialogListener,
     SpectrumFileChooserDialogFragment.ChooseFileDialogListener,
-    SaveSelectedSpectrumDialogFragment.ChooseSpectrumDialogListener{
+    SaveSelectedSpectrumDialogFragment.ChooseSpectrumDialogListener,
+    SaveSpectrumDataIntoFileDialogFragment.SaveSpectrumDataIntoFileListener {
 
     private lateinit var spectrumChart: LineChart
     private lateinit var measureTimer: Chronometer
@@ -321,7 +323,8 @@ class SpectrumFragment : SerialConnectionFragment(),
                 val spectrumFileChooserDialog = SaveSelectedSpectrumDialogFragment.newInstance(spectrumDataSet)
                 spectrumFileChooserDialog.show(childFragmentManager, "save_spectrum_file_dialog_fragment")
             } else {
-                saveGammaKitDataAsJson(requireContext(), spectrumDataSet)
+                val saveSpectrumIntoFileDialog = SaveSpectrumDataIntoFileDialogFragment.newInstance(spectrumDataSet)
+                saveSpectrumIntoFileDialog.show(childFragmentManager, "save_spectrum_into_file_dialog_fragment")
             }
         }
 
@@ -1175,13 +1178,12 @@ class SpectrumFragment : SerialConnectionFragment(),
         }
     }
 
-    fun saveGammaKitDataAsJson(context: Context, gammaKitData: OpenGammaKitData) {
-        val jsonFileName = "gamma_data_${System.currentTimeMillis()}.json"
+    fun saveGammaKitDataAsJson(context: Context, jsonFileName: String, fileLocation: String, gammaKitData: OpenGammaKitData) {
 
         val contentValues = ContentValues().apply {
             put(MediaStore.Files.FileColumns.DISPLAY_NAME, jsonFileName)
             put(MediaStore.Files.FileColumns.MIME_TYPE, "application/json")
-            put(MediaStore.Files.FileColumns.RELATIVE_PATH, "Documents/OpenGammaKit/")
+            put(MediaStore.Files.FileColumns.RELATIVE_PATH, fileLocation)
         }
 
         val contentResolver = context.contentResolver
@@ -1526,8 +1528,8 @@ class SpectrumFragment : SerialConnectionFragment(),
             derivedSpectra = selectedDerivedSpectra
         )
 
-        // Call save method with the modified data
-        saveGammaKitDataAsJson(requireContext(), modifiedData)
+        val saveSpectrumIntoFileDialog = SaveSpectrumDataIntoFileDialogFragment.newInstance(modifiedData)
+        saveSpectrumIntoFileDialog.show(childFragmentManager, "save_spectrum_into_file_dialog_fragment")
     }
 
     private fun toggleSavitzkyGolayFilter() {
@@ -1664,6 +1666,14 @@ class SpectrumFragment : SerialConnectionFragment(),
                 spectrumDataSet.derivedSpectra[index] = derivedEntry
             }
         }
+    }
+
+    override fun onSaveToFile(
+        fileName: String,
+        locationUri: String,
+        spectrumData: OpenGammaKitData
+    ) {
+        saveGammaKitDataAsJson(requireContext(), fileName, locationUri, spectrumData)
     }
 
     companion object {
