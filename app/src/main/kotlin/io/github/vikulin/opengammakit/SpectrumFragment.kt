@@ -69,6 +69,7 @@ import io.github.vikulin.opengammakit.view.FwhmSpectrumSelectionDialogFragment
 import io.github.vikulin.opengammakit.view.SaveSelectedSpectrumDialogFragment
 import io.github.vikulin.opengammakit.view.SaveSpectrumDataIntoFileDialogFragment
 import io.github.vikulin.opengammakit.view.SpectrumFileChooserDialogFragment
+import kotlinx.coroutines.Job
 import kotlin.math.log10
 
 class SpectrumFragment : SerialConnectionFragment(),
@@ -298,6 +299,12 @@ class SpectrumFragment : SerialConnectionFragment(),
                 val errorDialog = ErrorDialogFragment.Companion.newInstance(error)
                 errorDialog.show(childFragmentManager, "error_dialog_fragment")
             }?: run {
+                if(progressJob?.isActive == true){
+                    val error = "Spectrum recording is in progress"
+                    val errorDialog = ErrorDialogFragment.Companion.newInstance(error)
+                    errorDialog.show(childFragmentManager, "error_dialog_fragment")
+                    return@run
+                }
                 val spectrumRecordingTimeDialog =
                     SpectrumRecordingTimeDialogFragment.newInstance(60)
                 spectrumRecordingTimeDialog.show(childFragmentManager, "spectrum_recording_time")
@@ -1446,6 +1453,8 @@ class SpectrumFragment : SerialConnectionFragment(),
         measureTimer.stop()
     }
 
+    private var progressJob: Job? = null
+
     override fun onSpectrumRecordingTime(time: Long) {
         measureMode = SpectrumMeasureMode.Scheduled
         view?.keepScreenOn = true
@@ -1463,7 +1472,7 @@ class SpectrumFragment : SerialConnectionFragment(),
         // Start tracking progress separately
         startProgressUpdate(time)
 
-        lifecycleScope.launch {
+        progressJob = lifecycleScope.launch {
 
             delay(time * 1000L+200L) // Wait for recording time (handled by coroutine)
             // After recording ends
