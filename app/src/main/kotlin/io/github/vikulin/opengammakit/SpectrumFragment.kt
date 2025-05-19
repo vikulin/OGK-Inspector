@@ -318,14 +318,9 @@ class SpectrumFragment : SerialConnectionFragment(),
         }
 
         btnSaveSpectrum.setOnClickListener {
-            if(spectrumDataSet.data.size>1){
-                // show select spectrum to save into a file
-                val spectrumFileChooserDialog = SaveSelectedSpectrumDialogFragment.newInstance(spectrumDataSet)
-                spectrumFileChooserDialog.show(childFragmentManager, "save_spectrum_file_dialog_fragment")
-            } else {
-                val saveSpectrumIntoFileDialog = SaveSpectrumDataIntoFileDialogFragment.newInstance(spectrumDataSet)
-                saveSpectrumIntoFileDialog.show(childFragmentManager, "save_spectrum_into_file_dialog_fragment")
-            }
+            // show select spectrum to save into a file
+            val spectrumFileChooserDialog = SaveSelectedSpectrumDialogFragment.newInstance(spectrumDataSet)
+            spectrumFileChooserDialog.show(childFragmentManager, "save_spectrum_file_dialog_fragment")
         }
 
         btnToggleFilter.setOnClickListener {
@@ -533,12 +528,12 @@ class SpectrumFragment : SerialConnectionFragment(),
         return components.joinToString("")
     }
 
-    private fun getSpectrumLabel(index: Int, entry: GammaKitEntry): String{
-        val ct = entry.resultData.energySpectrum.validPulseCount
-        val mt = entry.resultData.energySpectrum.measurementTime
-        val ch = entry.resultData.energySpectrum.numberOfChannels
+    private fun getSpectrumLabel(index: Int, entry: OpenGammaKitData): String{
+        val ct = entry.data[index].resultData.energySpectrum.validPulseCount
+        val mt = entry.data[index].resultData.energySpectrum.measurementTime
+        val ch = entry.data[index].resultData.energySpectrum.numberOfChannels
         val t = formatTimeSkipZeros(mt)
-        return (entry.deviceData.deviceName?:"Spectrum ${index + 1}")+" Ch $ch Ct $ct T $t"
+        return entry.data[index].deviceData.deviceName +" ${entry.derivedSpectra[index]?.name} Ch $ch Ct $ct T $t"
     }
 
     private fun setupChart() {
@@ -553,7 +548,7 @@ class SpectrumFragment : SerialConnectionFragment(),
             val entries = spectrum.mapIndexed { ch, count ->
                 Entry(ch.toFloat(), count.toFloat())
             }
-            val label = getSpectrumLabel(entry.key, spectrumDataSet.data[entry.key])
+            val label = getSpectrumLabel(entry.key, spectrumDataSet)
             LineDataSet(entries, label).apply {
                 mode = LineDataSet.Mode.CUBIC_BEZIER
                 lineWidth = 1.5f
@@ -616,7 +611,7 @@ class SpectrumFragment : SerialConnectionFragment(),
             val entries = spectrum.mapIndexed { ch, count ->
                 Entry(ch.toFloat(), count.toFloat())
             }
-            val label = getSpectrumLabel(entry.key, spectrumDataSet.data[entry.key])
+            val label = getSpectrumLabel(entry.key, spectrumDataSet)
             LineDataSet(entries, label).apply {
                 mode = LineDataSet.Mode.CUBIC_BEZIER
                 lineWidth = 1.5f
@@ -665,7 +660,7 @@ class SpectrumFragment : SerialConnectionFragment(),
             val energy = interpolateEnergy(sortedCalibrationList, index.toDouble())
             Entry(energy.toFloat(), count.toFloat())
         }
-        val label = getSpectrumLabel(selectedIndex, spectrumDataSet.data[selectedIndex])
+        val label = getSpectrumLabel(selectedIndex, spectrumDataSet)
         val calibratedDataSet = LineDataSet(energyEntries, label).apply {
             mode = LineDataSet.Mode.CUBIC_BEZIER
             lineWidth = 1.5f
@@ -1506,22 +1501,44 @@ class SpectrumFragment : SerialConnectionFragment(),
 
     override fun onChoose(uri: String) {
         val openGammaKitData = readAndParseFile(requireContext(), uri.toUri())
-        spectrumDataSet.data.addAll(openGammaKitData.data)
+
+        openGammaKitData.data.forEachIndexed { index, spectrum ->
+            val addedIndex = spectrumDataSet.data.size
+            spectrumDataSet.data.add(spectrum)
+
+            spectrumDataSet.derivedSpectra[addedIndex] = openGammaKitData.derivedSpectra[index]
+                ?: DerivedSpectrumEntry(
+                    name = "Copied from raw spectrum",
+                    resultSpectrum = spectrum.resultData.energySpectrum.spectrum.map { it.toDouble() },
+                    modifiers = mutableListOf(),
+                    peaks = mutableListOf()
+                )
+        }
+
         updateChartSpectrumData()
     }
 
-    override fun onChooseMultiple(selectedIndexes: List<Int>) {
-        // Filter entries based on selected indexes
-        val selectedEntries = spectrumDataSet.data.filterIndexed { index, _ ->
-            index in selectedIndexes
-        }.toMutableList()
+    override fun onChooseMultiple(selectedIndexes: MutableMap<Int, String>) {
+        // Filter entries and remap derivedSpectra with updated names
+        val selectedEntries = mutableListOf<GammaKitEntry>()
+        val selectedDerivedSpectra = mutableMapOf<Int, DerivedSpectrumEntry>()
 
-        // Create a submap of derivedSpectra for selected indexes
-        val selectedDerivedSpectra = spectrumDataSet.derivedSpectra
-            .filterKeys { it in selectedIndexes }
-            .toMutableMap()
+        for ((originalIndex, newName) in selectedIndexes) {
+            val entry = spectrumDataSet.data.getOrNull(originalIndex) ?: continue
+            selectedEntries.add(entry)
 
-        // Create a new OpenGammaKitData with the same schema version and modified data
+            val derived = spectrumDataSet.derivedSpectra[originalIndex]?.copy(name = newName)
+                ?: DerivedSpectrumEntry(
+                    name = newName,
+                    resultSpectrum = entry.resultData.energySpectrum.spectrum.map { it.toDouble() },
+                    modifiers = mutableListOf(),
+                    peaks = mutableListOf()
+                )
+
+            selectedDerivedSpectra[selectedEntries.lastIndex] = derived
+        }
+
+        // Create a new OpenGammaKitData with selected and renamed items
         val modifiedData = OpenGammaKitData(
             schemaVersion = spectrumDataSet.schemaVersion,
             data = selectedEntries,

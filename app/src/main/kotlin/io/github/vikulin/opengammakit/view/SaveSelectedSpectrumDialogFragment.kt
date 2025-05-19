@@ -53,7 +53,7 @@ class SaveSelectedSpectrumDialogFragment : DialogFragment() {
         val spectrumData = arguments?.getSerializable(SPECTRUM_DATA) as? OpenGammaKitData
             ?: return view
 
-        adapter = SpectrumSaveAdapter(this.requireContext(), spectrumData.data)
+        adapter = SpectrumSaveAdapter(this.requireContext(), spectrumData)
         recyclerView.layoutManager = LinearLayoutManager(context)
         recyclerView.adapter = adapter
 
@@ -73,6 +73,6 @@ class SaveSelectedSpectrumDialogFragment : DialogFragment() {
 
     // Updated callback to support multiple selection
     interface ChooseSpectrumDialogListener {
-        fun onChooseMultiple(selectedIndexes: List<Int>)
+        fun onChooseMultiple(selectedIndexes: MutableMap<Int, String>)
     }
 }

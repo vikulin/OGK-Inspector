@@ -60,7 +60,7 @@ class SaveSpectrumDataIntoFileDialogFragment : DialogFragment() {
         val formatter = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
         val timestamp = formatter.format(Date())
         val fileName = "spectrum_$timestamp.json"
-        fileNameEditText.setText(fileName)
+        fileNameEditText.text = fileName
         selectedLocationText.text = "Documents/OpenGammaKit/"
         selectLocationButton.setOnClickListener {
             val name = fileNameEditText.text.toString().trim()

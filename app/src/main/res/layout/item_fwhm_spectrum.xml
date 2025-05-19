@@ -15,7 +15,7 @@
         android:layout_marginEnd="20dp" />
 
     <TextView
-        android:id="@+id/deviceName"
+        android:id="@+id/spectrumName"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:text="Spectrum #1"

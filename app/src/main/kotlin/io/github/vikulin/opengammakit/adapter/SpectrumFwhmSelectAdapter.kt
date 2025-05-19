@@ -20,7 +20,7 @@ class SpectrumFwhmSelectAdapter(
 
     inner class SpectrumViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val colorIndicator: MaterialCardView = itemView.findViewById(R.id.colorIndicator)
-        val deviceName: TextView = itemView.findViewById(R.id.deviceName)
+        val deviceName: TextView = itemView.findViewById(R.id.spectrumName)
 
         fun bind(entry: GammaKitEntry, index: Int) {
             colorIndicator.setBackgroundTintList(ColorStateList.valueOf(SpectrumFragment.getLineColor(dialog.requireContext(), index)))

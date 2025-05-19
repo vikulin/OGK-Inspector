@@ -14,14 +14,20 @@
         android:backgroundTint="@color/colorAccent"
         android:layout_marginEnd="20dp" />
 
-    <TextView
-        android:id="@+id/deviceName"
+    <EditText
+        android:id="@+id/spectrumName"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:autofillHints="name"
+        android:minWidth="300dp"
         android:text="Spectrum #1"
+        android:hint="Spectrum name"
+        android:maxLength="10"
+        android:inputType="text"
+        android:digits="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-"
         android:textColor="@color/colorPrimaryText"
         android:textSize="14sp"
-        android:layout_weight="1"
         android:gravity="center_vertical" />
 
     <CheckBox
