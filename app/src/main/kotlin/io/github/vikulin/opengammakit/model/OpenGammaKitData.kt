@@ -41,7 +41,8 @@ data class GammaKitEntry(
 @Serializable
 data class DeviceData(
     val softwareName: String,
-    val deviceName: String
+    val deviceName: String,
+    var deviceId: String? = null
 ) : JavaSerializable
 
 @Serializable

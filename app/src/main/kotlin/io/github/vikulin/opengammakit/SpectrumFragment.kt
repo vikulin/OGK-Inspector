@@ -47,6 +47,7 @@ import io.github.vikulin.opengammakit.model.EmissionSource
 import io.github.vikulin.opengammakit.model.Isotope
 import java.io.OutputStream
 import androidx.core.content.edit
+import androidx.core.net.toFile
 import androidx.lifecycle.lifecycleScope
 import io.github.vikulin.opengammakit.model.OpenGammaKitData
 import io.github.vikulin.opengammakit.view.CalibrationUpdateOrRemoveDialogFragment
@@ -229,6 +230,8 @@ class SpectrumFragment : SerialConnectionFragment(),
 
                     initChart(outState)
                     setupChart()
+                    // find first matching calibration from local db and load it to chart
+                    spectrumDataSet.data.find { loadCalibrationData(it.deviceData.deviceId) }
                 } catch (e: Exception) {
                     e.printStackTrace()
                     val errorDialog = ErrorDialogFragment.newInstance(e.message ?: "Unknown error")
@@ -452,7 +455,7 @@ class SpectrumFragment : SerialConnectionFragment(),
 
     override fun onConnectionSuccess() {
         super.onConnectionSuccess()
-        loadCalibrationData()
+        loadCalibrationData(serialNumber)
         updateChartWithCombinedXAxis(selectedCalibrationMeasurementIndex)
         showCalibrationLimitLines()
         updateDetectedPeaks()
@@ -541,6 +544,16 @@ class SpectrumFragment : SerialConnectionFragment(),
         val ch = entry.data[index].resultData.energySpectrum.numberOfChannels
         val t = formatTimeSkipZeros(mt)
         return entry.data[index].deviceData.deviceName +" ${entry.derivedSpectra[index]?.name} Ch $ch Ct $ct T $t"
+    }
+
+    fun calculateYOffset(peakEnergy: Int): Float {
+        val baseOffset = 25f
+        // Define reset interval
+        val resetInterval = 3300 / 6
+        // Calculate adjusted energy level
+        val adjustedEnergy = peakEnergy % resetInterval
+        // Compute yOffset
+        return baseOffset + adjustedEnergy.toFloat() / 15f
     }
 
     private fun setupChart() {
@@ -824,9 +837,13 @@ class SpectrumFragment : SerialConnectionFragment(),
                                 energySpectrum.numberOfChannels = spectrum.size
                                 energySpectrum.measurementTime =
                                     (SystemClock.elapsedRealtime() - measureTimer.base)/1000
+                                //mark spectrum with deviceId
+                                serialNumber?.let {
+                                    spectrumDataSet.data[deviceSpectrumIndex].deviceData.deviceId = it
+                                }
+
                                 // copy spectrum. TODO apply modifiers and peaks detection
                                 resetSpectrumData(spectrumDataSet)
-
                                 updateChartSpectrumData()
                             } catch (e: Exception) {
                                 Log.e("Test", "Failed to parse data: ${e.message}")
@@ -864,6 +881,10 @@ class SpectrumFragment : SerialConnectionFragment(),
                                         "Parsed scheduled spectrum number: ${openGammaKitData.data.size}"
                                     )
                                     spectrumDataSet.data[deviceSpectrumIndex] = openGammaKitData.data[deviceSpectrumIndex]
+                                    //mark spectrum with deviceId
+                                    serialNumber?.let {
+                                        spectrumDataSet.data[deviceSpectrumIndex].deviceData.deviceId = it
+                                    }
                                     // copy spectrum. TODO apply modifiers and peaks detection
                                     resetSpectrumData(spectrumDataSet)
                                     updateChartSpectrumData()
@@ -1040,8 +1061,7 @@ class SpectrumFragment : SerialConnectionFragment(),
             lineWidth = 2f
             enableDashedLine(3f, 3f, 0f)
             labelPosition = LimitLine.LimitLabelPosition.RIGHT_BOTTOM
-            yOffset = 40.0f
-
+            yOffset = calculateYOffset(peakEnergy.toInt())
         }
         xAxis.addLimitLine(verticalCalibrationLine)
         val emissionSource = if(peakIsotope != null){
@@ -1068,7 +1088,7 @@ class SpectrumFragment : SerialConnectionFragment(),
             lineWidth = 2f
             enableDashedLine(3f, 3f, 0f)
             labelPosition = LimitLine.LimitLabelPosition.RIGHT_BOTTOM
-            yOffset = 40.0f
+            yOffset = calculateYOffset(peakEnergy.toInt())
         }
         xAxis.addLimitLine(verticalCalibrationLine)
         val emissionSource = if(peakIsotope != null){
@@ -1270,43 +1290,44 @@ class SpectrumFragment : SerialConnectionFragment(),
     }
 
     // Function to load calibration data
-    private fun loadCalibrationData() {
-
+    private fun loadCalibrationData(serialNumber: String?): Boolean {
+        if(serialNumber == null) {
+            return false
+        }
         // the calibration data has been already loaded from savedInstanceState
         if(verticalCalibrationLineList.isNotEmpty()){
-            return
+            return true
         }
 
-        val serializedData = sharedPreferences.getString(calibrationPreferencesKey+serialNumber, null) ?: return
+        val serializedData = sharedPreferences.getString(calibrationPreferencesKey+serialNumber, null) ?: return false
 
         // Deserialize the JSON back into the calibration list using kotlinx.serialization
         val calibrationDataList: List<CalibrationData> = Json.decodeFromString(serializedData)
 
-        calibrationDataList.forEach {
+        calibrationDataList.forEachIndexed { index, it ->
             val limitLine = LimitLine(it.limitLineValue, it.limitLineLabel)
+            val emissionSource = it.emissionSource
             limitLine.apply {
                 labelPosition = LimitLine.LimitLabelPosition.RIGHT_BOTTOM
-                yOffset = 40.0f
-
+                yOffset = calculateYOffset(emissionSource.energy.toInt())
             }
-            val emissionSource = it.emissionSource
             verticalCalibrationLineList.add(Pair(limitLine, Pair(it.channel, emissionSource)))
         }
+        return verticalCalibrationLineList.isNotEmpty()
     }
 
     private fun showCalibrationLimitLines() {
         val xAxis = spectrumChart.xAxis
         xAxis.removeAllLimitLines()
         // Add all calibration limit lines back to the xAxis
-        verticalCalibrationLineList.forEach { pair ->
+        verticalCalibrationLineList.forEachIndexed { index, pair ->
             val limitLine = LimitLine(pair.first.limit, pair.first.label).apply {
                 lineColor = Color.MAGENTA
                 textColor = resources.getColor(R.color.colorPrimaryText, null)
                 lineWidth = 2f
                 enableDashedLine(3f, 3f, 0f)
                 labelPosition = LimitLine.LimitLabelPosition.RIGHT_BOTTOM
-                yOffset = 40.0f
-
+                yOffset = calculateYOffset(pair.second.second.energy.toInt())
             }
             xAxis.addLimitLine(limitLine)
         }
@@ -1569,7 +1590,7 @@ class SpectrumFragment : SerialConnectionFragment(),
                 val modified = SpectrumModifier.applySavitzkyGolayFilter(inputSpectrum)
 
                 val derivedEntry = DerivedSpectrumEntry(
-                    name = "${entry.deviceData.deviceName} - SavitzkyGolay",
+                    name = "SavitzkyGolay",
                     resultSpectrum = modified,
                     modifiers = mutableListOf(
                         ModifierInfo(
@@ -1614,7 +1635,7 @@ class SpectrumFragment : SerialConnectionFragment(),
                 val modified = SpectrumModifier.applySavitzkyGolayFilter(inputSpectrum)
 
                 val derivedEntry = DerivedSpectrumEntry(
-                    name = "${entry.deviceData.deviceName} - SavitzkyGolay",
+                    name = "SavitzkyGolay",
                     resultSpectrum = modified,
                     modifiers = mutableListOf(
                         ModifierInfo(
@@ -1679,7 +1700,7 @@ class SpectrumFragment : SerialConnectionFragment(),
                 }
 
                 val derivedEntry = DerivedSpectrumEntry(
-                    name = "${entry.deviceData.deviceName} - LogScale",
+                    name = "LogScale",
                     resultSpectrum = logScaled,
                     modifiers = mutableListOf(
                         ModifierInfo(

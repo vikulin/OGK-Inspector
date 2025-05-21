@@ -57,9 +57,12 @@ class SaveSpectrumDataIntoFileDialogFragment : DialogFragment() {
         val selectLocationButton = view.findViewById<ImageButton>(R.id.selectLocationButton)
         selectedLocationText = view.findViewById<TextView>(R.id.selectedLocationText)
         val saveButton = view.findViewById<Button>(R.id.saveButton)
+        val spectrumData = arguments?.getSerializable(SPECTRUM_DATA) as? OpenGammaKitData
+            ?: return view
+        val prefix = spectrumData.derivedSpectra.entries.first().value.name
         val formatter = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
         val timestamp = formatter.format(Date())
-        val fileName = "spectrum_$timestamp.json"
+        val fileName = prefix+"_$timestamp.json"
         fileNameEditText.text = fileName
         selectedLocationText.text = "Documents/OpenGammaKit/"
         selectLocationButton.setOnClickListener {
@@ -70,9 +73,6 @@ class SaveSpectrumDataIntoFileDialogFragment : DialogFragment() {
                 createDocumentLauncher.launch(name)
             }
         }
-
-        val spectrumData = arguments?.getSerializable(SPECTRUM_DATA) as? OpenGammaKitData
-            ?: return view
         saveButton.setOnClickListener {
             val fileName = fileNameEditText.text.toString().trim()
             val uri = selectedLocationText.text
