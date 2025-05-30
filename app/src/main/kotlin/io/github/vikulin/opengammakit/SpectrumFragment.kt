@@ -1706,13 +1706,23 @@ class SpectrumFragment : SerialConnectionFragment(),
         saveSpectrumIntoFileDialog.show(childFragmentManager, "save_spectrum_into_file_dialog_fragment")
     }
 
+    private fun getLatestModifiedSpectrum(index: Int, entry: GammaKitEntry): List<Double> {
+        return spectrumDataSet.derivedSpectra[index]?.modifiers?.takeIf { it.isNotEmpty() }?.let { modifiers ->
+            // Run this block when modifiers is NOT null and NOT empty
+            spectrumDataSet.derivedSpectra[index]!!.resultSpectrum
+        } ?: run {
+            // Run this block when modifiers is null, empty, or derivedSpectra[index] is null
+            entry.resultData.energySpectrum.spectrum.map { it.toDouble() }
+        }
+    }
+
     private fun toggleSavitzkyGolayFilter() {
         val alreadyModified = alreadyModified("SavitzkyGolay")
 
         if (!alreadyModified) {
             // Apply Savitzky-Golay modifier for each original spectrum
             spectrumDataSet.data.forEachIndexed { index, entry ->
-                val inputSpectrum = entry.resultData.energySpectrum.spectrum.map { it.toDouble() }
+                val inputSpectrum = getLatestModifiedSpectrum(index, entry)
 
                 val modified = SpectrumModifier.applySavitzkyGolayFilter(inputSpectrum)
 
@@ -1757,7 +1767,7 @@ class SpectrumFragment : SerialConnectionFragment(),
 
                 if (alreadyModified) return@forEachIndexed
 
-                val inputSpectrum = entry.resultData.energySpectrum.spectrum.map { it.toDouble() }
+                val inputSpectrum = getLatestModifiedSpectrum(index, entry)
 
                 val modified = SpectrumModifier.applySavitzkyGolayFilter(inputSpectrum)
 
@@ -1801,7 +1811,7 @@ class SpectrumFragment : SerialConnectionFragment(),
 
         if (!alreadyModified) {
             spectrumDataSet.data.forEachIndexed { index, entry ->
-                applyLogScale(spectrumDataSet, entry, index, apply = true)
+                applyLogScale(entry, index, apply = true)
             }
         } else {
             // Reset: clear all derived spectra and add raw versions only
@@ -1810,7 +1820,6 @@ class SpectrumFragment : SerialConnectionFragment(),
     }
 
     fun applyLogScale(
-        dataSet: OpenGammaKitData,
         entry: GammaKitEntry,
         index: Int,
         apply: Boolean
@@ -1820,7 +1829,8 @@ class SpectrumFragment : SerialConnectionFragment(),
             val alreadyModified = alreadyModified("LogScale", index)
 
             if (!alreadyModified) {
-                val inputSpectrum = entry.resultData.energySpectrum.spectrum.map { it.toDouble() }
+                val inputSpectrum = getLatestModifiedSpectrum(index, entry)
+
                 val logScaled = inputSpectrum.map { count ->
                     val adjusted = if (count > 1.0) count else 1.0
                     log10(adjusted)
