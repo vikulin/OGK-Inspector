@@ -25,7 +25,6 @@ import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
-import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.components.Description
 import com.github.mikephil.charting.components.LimitLine
 import com.github.mikephil.charting.components.XAxis
@@ -47,7 +46,6 @@ import io.github.vikulin.opengammakit.model.EmissionSource
 import io.github.vikulin.opengammakit.model.Isotope
 import java.io.OutputStream
 import androidx.core.content.edit
-import androidx.core.net.toFile
 import androidx.lifecycle.lifecycleScope
 import io.github.vikulin.opengammakit.model.OpenGammaKitData
 import io.github.vikulin.opengammakit.view.CalibrationUpdateOrRemoveDialogFragment
@@ -60,7 +58,12 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 import kotlin.text.iterator
 import androidx.core.net.toUri
+import com.github.mikephil.charting.charts.CombinedChart
 import com.github.mikephil.charting.components.Legend
+import com.github.mikephil.charting.data.BarData
+import com.github.mikephil.charting.data.CombinedData
+import com.github.mikephil.charting.data.BarDataSet
+import com.github.mikephil.charting.data.BarEntry
 import io.github.vikulin.opengammakit.math.SpectrumModifier
 import io.github.vikulin.opengammakit.math.SpectrumModifier.smartPeakDetect
 import io.github.vikulin.opengammakit.model.DerivedSpectrumEntry
@@ -70,7 +73,6 @@ import io.github.vikulin.opengammakit.view.FwhmSpectrumSelectionDialogFragment
 import io.github.vikulin.opengammakit.view.SaveSelectedSpectrumDialogFragment
 import io.github.vikulin.opengammakit.view.SaveSpectrumDataIntoFileDialogFragment
 import io.github.vikulin.opengammakit.view.SpectrumFileChooserDialogFragment
-import kotlinx.coroutines.Job
 import kotlin.math.log10
 
 class SpectrumFragment : SerialConnectionFragment(),
@@ -82,7 +84,7 @@ class SpectrumFragment : SerialConnectionFragment(),
     SaveSelectedSpectrumDialogFragment.ChooseSpectrumDialogListener,
     SaveSpectrumDataIntoFileDialogFragment.SaveSpectrumDataIntoFileListener {
 
-    private lateinit var spectrumChart: LineChart
+    private lateinit var spectrumChart: CombinedChart
     private lateinit var measureTimer: Chronometer
     private lateinit var elapsedTime: TextView
     private lateinit var btnCalibration: ImageButton
@@ -96,6 +98,7 @@ class SpectrumFragment : SerialConnectionFragment(),
     private lateinit var btnToggleFilter: ImageButton
     private lateinit var btnToggleDetectPeak: ImageButton
     private lateinit var btnToggleLogScale: ImageButton
+    private lateinit var btnSwitchBarLineGraph: ImageButton
     private lateinit var clockProgressView: ClockProgressView
     private lateinit var spectrumDataSet: OpenGammaKitData
     // Indicates which graph is currently active for measurements such as Calibration and FWHM
@@ -112,6 +115,7 @@ class SpectrumFragment : SerialConnectionFragment(),
     private val calibrationPreferencesKey = "calibration_data_"
     private lateinit var sharedPreferences: SharedPreferences
     private var mediaPlayer: MediaPlayer? = null
+    private var dataIndex: Int = 1 //LineData corresponds to 0 index, BarData - 1
 
     private val zeroedData: String by lazy {
         requireContext().assets.open("spectrum_zeroed.json").bufferedReader().use { it.readText() }
@@ -160,9 +164,24 @@ class SpectrumFragment : SerialConnectionFragment(),
         btnToggleFilter = view.findViewById(R.id.btnToggleFilter)
         btnToggleDetectPeak = view.findViewById(R.id.btnToggleDetectPeak)
         btnToggleLogScale = view.findViewById(R.id.btnToggleLogScale)
+        btnSwitchBarLineGraph = view.findViewById(R.id.btnSwitchBarLineGraph)
         clockProgressView = view.findViewById(R.id.clockProgressView)
 
         gestureDetector = GestureDetector(requireContext(), object : GestureDetector.SimpleOnGestureListener() {
+
+            override fun onScroll(
+                e1: MotionEvent?,
+                e2: MotionEvent,
+                distanceX: Float,
+                distanceY: Float
+            ): Boolean {
+                if (measureMode == SpectrumMeasureMode.Fwhm) {
+                    showPeakResolution(e2.x) // continuously update marker while dragging
+                    return true
+                }
+                return false
+            }
+
             override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
                 when(measureMode) {
                     SpectrumMeasureMode.Live -> {
@@ -172,8 +191,6 @@ class SpectrumFragment : SerialConnectionFragment(),
                         // UI actions are blocked while spectrum measurements
                     }
                     SpectrumMeasureMode.Fwhm -> {
-                        val marker = ResolutionMarkerView(requireContext(), R.layout.marker_view)
-                        spectrumChart.marker = marker
                         showPeakResolution(e.x)
                     }
                     SpectrumMeasureMode.Calibration -> {
@@ -302,12 +319,6 @@ class SpectrumFragment : SerialConnectionFragment(),
                 val errorDialog = ErrorDialogFragment.Companion.newInstance(error)
                 errorDialog.show(childFragmentManager, "error_dialog_fragment")
             }?: run {
-                if(progressJob?.isActive == true){
-                    val error = "Spectrum recording is in progress"
-                    val errorDialog = ErrorDialogFragment.Companion.newInstance(error)
-                    errorDialog.show(childFragmentManager, "error_dialog_fragment")
-                    return@run
-                }
                 val spectrumRecordingTimeDialog =
                     SpectrumRecordingTimeDialogFragment.newInstance(60)
                 spectrumRecordingTimeDialog.show(childFragmentManager, "spectrum_recording_time")
@@ -355,6 +366,15 @@ class SpectrumFragment : SerialConnectionFragment(),
 
         btnToggleLogScale.setOnClickListener {
             toggleLogScaleFilter()
+            updateChartSpectrumData()
+        }
+
+        btnSwitchBarLineGraph.setOnClickListener {
+            dataIndex = if(dataIndex == 0){
+                1
+            } else {
+                0
+            }
             updateChartSpectrumData()
         }
     }
@@ -558,61 +578,94 @@ class SpectrumFragment : SerialConnectionFragment(),
 
     private fun setupChart() {
         val primaryColor = resources.getColor(R.color.colorPrimaryText, null)
-        //copy data to outputSpectrum
-        if(spectrumDataSet.derivedSpectra.isEmpty()){
+
+        if (spectrumDataSet.derivedSpectra.isEmpty()) {
             resetSpectrumData(spectrumDataSet)
         }
-        // Create LineDataSets from each GammaKitEntry in spectrumDataSet
-        val dataSets = spectrumDataSet.derivedSpectra.map { entry ->
-            val spectrum = entry.value.resultSpectrum
-            val entries = spectrum.mapIndexed { ch, count ->
-                Entry(ch.toFloat(), count.toFloat())
-            }
-            val label = getSpectrumLabel(entry.key, spectrumDataSet)
-            LineDataSet(entries, label).apply {
-                mode = LineDataSet.Mode.CUBIC_BEZIER
-                lineWidth = 1.5f
-                setDrawCircles(false)
-                setDrawValues(false)
-                color = getLineColor(requireContext(), entry.key)
-            }
-        }
 
-        // Set up chart
-        spectrumChart.apply {
-            data = LineData(dataSets)
-            xAxis.apply {
-                labelRotationAngle = 0f
-                position = XAxis.XAxisPosition.BOTTOM
-                textColor = primaryColor
-                valueFormatter = object : ValueFormatter() {
-                    override fun getAxisLabel(value: Float, axis: AxisBase?): String {
-                        return value.toInt().toString()
-                    }
+        if (dataIndex == 0) {
+            // Create LineDataSets
+            val dataSets = spectrumDataSet.derivedSpectra.map { entry ->
+                val spectrum = entry.value.resultSpectrum
+                val entries = spectrum.mapIndexed { ch, count ->
+                    Entry(ch.toFloat(), count.toFloat())
+                }
+                val label = getSpectrumLabel(entry.key, spectrumDataSet)
+                LineDataSet(entries, label).apply {
+                    mode = LineDataSet.Mode.CUBIC_BEZIER
+                    lineWidth = 1.5f
+                    setDrawCircles(false)
+                    setDrawValues(false)
+                    color = getLineColor(requireContext(), entry.key)
                 }
             }
-            axisRight.isEnabled = true
-            axisLeft.textColor = primaryColor
-            axisRight.textColor = primaryColor
-            description = Description().apply {
-                text = "Channel vs Counts"
-                textColor = primaryColor
+
+            spectrumChart.apply {
+                data = CombinedData().apply {
+                    setData(LineData(dataSets))
+                    setData(BarData())
+                }
+                configureAxesAndLegend(primaryColor)
+                invalidate()
             }
-            legend.apply {
-                isWordWrapEnabled = true
-                form = Legend.LegendForm.LINE
-                textColor = resources.getColor(R.color.colorPrimaryText, null)
-                textSize = 12f
-                verticalAlignment = Legend.LegendVerticalAlignment.BOTTOM
-                horizontalAlignment = Legend.LegendHorizontalAlignment.LEFT
-                orientation = Legend.LegendOrientation.HORIZONTAL
-                setDrawInside(false)
-                xEntrySpace = 20f
+
+        } else {
+            // Create BarDataSets
+            val dataSets = spectrumDataSet.derivedSpectra.map { entry ->
+                val spectrum = entry.value.resultSpectrum
+                val entries = spectrum.mapIndexed { ch, count ->
+                    BarEntry(ch.toFloat(), count.toFloat())
+                }
+                val label = getSpectrumLabel(entry.key, spectrumDataSet)
+                BarDataSet(entries, label).apply {
+                    setDrawValues(false)
+                    color = getLineColor(requireContext(), entry.key)
+                }
             }
-            invalidate()
+
+            spectrumChart.apply {
+                data = CombinedData().apply {
+                    setData(BarData(dataSets))
+                    setData(LineData())
+                }
+                configureAxesAndLegend(primaryColor)
+                invalidate()
+            }
         }
 
         setupChartTouchListener()
+    }
+
+    // Helper function for common axis and legend setup
+    private fun CombinedChart.configureAxesAndLegend(primaryColor: Int) {
+        xAxis.apply {
+            labelRotationAngle = 0f
+            position = XAxis.XAxisPosition.BOTTOM
+            textColor = primaryColor
+            valueFormatter = object : ValueFormatter() {
+                override fun getAxisLabel(value: Float, axis: AxisBase?): String {
+                    return value.toInt().toString()
+                }
+            }
+        }
+        axisRight.isEnabled = true
+        axisLeft.textColor = primaryColor
+        axisRight.textColor = primaryColor
+        description = Description().apply {
+            text = "Channel vs Counts"
+            textColor = primaryColor
+        }
+        legend.apply {
+            isWordWrapEnabled = true
+            form = Legend.LegendForm.LINE
+            textColor = resources.getColor(R.color.colorPrimaryText, null)
+            textSize = 12f
+            verticalAlignment = Legend.LegendVerticalAlignment.BOTTOM
+            horizontalAlignment = Legend.LegendHorizontalAlignment.LEFT
+            orientation = Legend.LegendOrientation.HORIZONTAL
+            setDrawInside(false)
+            xEntrySpace = 20f
+        }
     }
 
     private fun setupChartTouchListener() {
@@ -621,30 +674,66 @@ class SpectrumFragment : SerialConnectionFragment(),
             gestureDetector.onTouchEvent(event)
             // Important: allow LineChart to handle other gestures (zoom, drag)
             spectrumChart.onTouchEvent(event)
+            true
         }
     }
 
     private fun updateChartSpectrumData() {
-
-        val dataSets = spectrumDataSet.derivedSpectra.map { entry ->
-            val spectrum = entry.value.resultSpectrum
-            val entries = spectrum.mapIndexed { ch, count ->
-                Entry(ch.toFloat(), count.toFloat())
+        if (dataIndex == 0) {
+            val dataSets = spectrumDataSet.derivedSpectra.map { entry ->
+                val spectrum = entry.value.resultSpectrum
+                val entries = spectrum.mapIndexed { ch, count ->
+                    Entry(ch.toFloat(), count.toFloat())
+                }
+                val label = getSpectrumLabel(entry.key, spectrumDataSet)
+                LineDataSet(entries, label).apply {
+                    mode = LineDataSet.Mode.CUBIC_BEZIER
+                    lineWidth = 1.5f
+                    setDrawCircles(false)
+                    setDrawValues(false)
+                    color = getLineColor(requireContext(), entry.key)
+                }
             }
-            val label = getSpectrumLabel(entry.key, spectrumDataSet)
-            LineDataSet(entries, label).apply {
-                mode = LineDataSet.Mode.CUBIC_BEZIER
-                lineWidth = 1.5f
-                setDrawCircles(false)
-                setDrawValues(false)
-                color = getLineColor(requireContext(), entry.key)
+
+            spectrumChart.apply {
+                data = CombinedData().apply {
+                    setData(LineData(dataSets))
+                    setData(BarData())
+                }
+                updateLegend()
+                data.notifyDataChanged()
+                notifyDataSetChanged()
+                invalidate()
+            }
+
+        } else {
+            val dataSets = spectrumDataSet.derivedSpectra.map { entry ->
+                val spectrum = entry.value.resultSpectrum
+                val entries = spectrum.mapIndexed { ch, count ->
+                    BarEntry(ch.toFloat(), count.toFloat())
+                }
+                val label = getSpectrumLabel(entry.key, spectrumDataSet)
+                BarDataSet(entries, label).apply {
+                    setDrawValues(false)
+                    color = getLineColor(requireContext(), entry.key)
+                }
+            }
+
+            spectrumChart.apply {
+                data = CombinedData().apply {
+                    setData(BarData(dataSets))
+                    setData(LineData())
+                }
+                updateLegend()
+                data.notifyDataChanged()
+                notifyDataSetChanged()
+                invalidate()
             }
         }
+    }
 
-        // Set up chart
-        spectrumChart.apply {
-            data = LineData(dataSets)
-        }
+    // Helper method for legend update, to avoid duplication
+    private fun updateLegend() {
         spectrumChart.legend.apply {
             isWordWrapEnabled = true
             form = Legend.LegendForm.LINE
@@ -656,9 +745,6 @@ class SpectrumFragment : SerialConnectionFragment(),
             setDrawInside(false)
             xEntrySpace = 20f
         }
-        spectrumChart.data.notifyDataChanged()
-        spectrumChart.notifyDataSetChanged()
-        spectrumChart.invalidate()
     }
 
     private fun updateChartWithCombinedXAxis(selectedIndex: Int) {
@@ -675,62 +761,104 @@ class SpectrumFragment : SerialConnectionFragment(),
             ?: Json.decodeFromString<OpenGammaKitData>(zeroedData).data.firstOrNull()?.resultData?.energySpectrum
             ?: return
 
-        // Interpolate channel -> energy and create entries
-        val energyEntries = selectedSpectrum.spectrum.mapIndexed { index, count ->
-            val energy = interpolateEnergy(sortedCalibrationList, index.toDouble())
-            Entry(energy.toFloat(), count.toFloat())
-        }
-        val label = getSpectrumLabel(selectedIndex, spectrumDataSet)
-        val calibratedDataSet = LineDataSet(energyEntries, label).apply {
-            mode = LineDataSet.Mode.CUBIC_BEZIER
-            lineWidth = 1.5f
-            setDrawCircles(false)
-            setDrawValues(false)
-            color = getLineColor(requireContext(), selectedIndex)
-        }
-
-        val calibrationLegendDataSet = LineDataSet(listOf(Entry(0f, 0f)), "Calibration Points").apply {
-            color = Color.MAGENTA
-            lineWidth = 2f
-            setDrawValues(false)
-            setDrawCircles(false)
-        }
-
         val primaryColor = resources.getColor(R.color.colorPrimaryText, null)
 
-        spectrumChart.apply {
-            data = LineData(calibratedDataSet, calibrationLegendDataSet)
-            xAxis.apply {
-                position = XAxis.XAxisPosition.BOTTOM
-                textColor = primaryColor
-                valueFormatter = object : ValueFormatter() {
-                    override fun getAxisLabel(value: Float, axis: AxisBase?): String {
-                        val energy = interpolateEnergy(sortedCalibrationList, value.toDouble())
-                        return "%.1f keV".format(energy)
-                    }
+        if (dataIndex == 0) {
+            // Create LineDataSets
+            val energyEntries = selectedSpectrum.spectrum.mapIndexed { index, count ->
+                val energy = interpolateEnergy(sortedCalibrationList, index.toDouble())
+                Entry(energy.toFloat(), count.toFloat())
+            }
+            val label = getSpectrumLabel(selectedIndex, spectrumDataSet)
+            val calibratedDataSet = LineDataSet(energyEntries, label).apply {
+                mode = LineDataSet.Mode.CUBIC_BEZIER
+                lineWidth = 1.5f
+                setDrawCircles(false)
+                setDrawValues(false)
+                color = getLineColor(requireContext(), selectedIndex)
+            }
+
+            val calibrationLegendDataSet = LineDataSet(listOf(Entry(0f, 0f)), "Calibration Points").apply {
+                color = Color.MAGENTA
+                lineWidth = 2f
+                setDrawValues(false)
+                setDrawCircles(false)
+            }
+
+            spectrumChart.apply {
+                data = CombinedData().apply {
+                    setData(LineData(calibratedDataSet, calibrationLegendDataSet))
+                    setData(BarData())
                 }
+                setupXAxis(primaryColor, sortedCalibrationList)
+                setupCommonChartProperties(primaryColor)
+                invalidate()
             }
-            axisLeft.textColor = primaryColor
-            axisRight.textColor = primaryColor
-            description = Description().apply {
-                text = "Counts vs Energy"
-                textColor = primaryColor
+        } else {
+            // Create BarDataSets
+            val energyEntries = selectedSpectrum.spectrum.mapIndexed { index, count ->
+                val energy = interpolateEnergy(sortedCalibrationList, index.toDouble())
+                BarEntry(energy.toFloat(), count.toFloat())
             }
-            legend.apply {
-                isWordWrapEnabled = true
-                form = Legend.LegendForm.LINE
-                textColor = resources.getColor(R.color.colorPrimaryText, null)
-                textSize = 12f
-                verticalAlignment = Legend.LegendVerticalAlignment.BOTTOM
-                horizontalAlignment = Legend.LegendHorizontalAlignment.LEFT
-                orientation = Legend.LegendOrientation.HORIZONTAL
-                setDrawInside(false)
-                xEntrySpace = 20f
+            val label = getSpectrumLabel(selectedIndex, spectrumDataSet)
+            val calibratedDataSet = BarDataSet(energyEntries, label).apply {
+                setDrawValues(false)
+                color = getLineColor(requireContext(), selectedIndex)
             }
-            invalidate()
+
+            val calibrationLegendDataSet = BarDataSet(listOf(BarEntry(0f, 0f)), "Calibration Points").apply {
+                color = Color.MAGENTA
+                setDrawValues(false)
+            }
+
+            spectrumChart.apply {
+                data = CombinedData().apply {
+                    setData(BarData(calibratedDataSet, calibrationLegendDataSet))
+                    setData(LineData())
+                }
+                setupXAxis(primaryColor, sortedCalibrationList)
+                setupCommonChartProperties(primaryColor)
+                invalidate()
+            }
         }
+
         // Update entries after axis transformation
         updateChartSpectrumData()
+    }
+
+    // Helper extension function to setup xAxis formatting
+    private fun CombinedChart.setupXAxis(primaryColor: Int, sortedCalibrationList: List<Pair<LimitLine, Pair<Double, EmissionSource>>>) {
+        xAxis.apply {
+            position = XAxis.XAxisPosition.BOTTOM
+            textColor = primaryColor
+            valueFormatter = object : ValueFormatter() {
+                override fun getAxisLabel(value: Float, axis: AxisBase?): String {
+                    val energy = interpolateEnergy(sortedCalibrationList, value.toDouble())
+                    return "%.1f keV".format(energy)
+                }
+            }
+        }
+    }
+
+    // Helper extension function for shared chart setup
+    private fun CombinedChart.setupCommonChartProperties(primaryColor: Int) {
+        axisLeft.textColor = primaryColor
+        axisRight.textColor = primaryColor
+        description = Description().apply {
+            text = "Counts vs Energy"
+            textColor = primaryColor
+        }
+        legend.apply {
+            isWordWrapEnabled = true
+            form = Legend.LegendForm.LINE
+            textColor = resources.getColor(R.color.colorPrimaryText, null)
+            textSize = 12f
+            verticalAlignment = Legend.LegendVerticalAlignment.BOTTOM
+            horizontalAlignment = Legend.LegendHorizontalAlignment.LEFT
+            orientation = Legend.LegendOrientation.HORIZONTAL
+            setDrawInside(false)
+            xEntrySpace = 20f
+        }
     }
 
     private fun updateDetectedPeaks() {
@@ -995,15 +1123,16 @@ class SpectrumFragment : SerialConnectionFragment(),
             val (leftX, rightX) = findCrossingPoints(halfHeight, pickX)
             val resolutionRate = calculateResolutionRate(leftX, rightX, pickX)
             val primaryColor = resources.getColor(R.color.colorPrimaryText, null)
-            // Show marker at the cross point (pickX, halfHeight)
-            val marker = spectrumChart.marker as? ResolutionMarkerView
-            marker?.apply {
+
+            val highlight = Highlight(pickX, halfHeight, selectedFwhmMeasurementIndex)
+            highlight.dataIndex = dataIndex
+            val marker = ResolutionMarkerView(requireContext(), R.layout.marker_view)
+            spectrumChart.marker = marker
+            marker.apply {
                 setResolution(resolutionRate, primaryColor)
-                refreshContent(Entry(pickX, halfHeight), Highlight(pickX, halfHeight, selectedFwhmMeasurementIndex))
+                refreshContent(Entry(pickX, halfHeight), highlight)
             }
-
-            spectrumChart.highlightValue(Highlight(pickX, halfHeight, selectedFwhmMeasurementIndex)) // triggers marker display
-
+            //spectrumChart.highlightValue(highlight) // Use `true` to trigger redraw with marker
         }
     }
 
@@ -1474,8 +1603,6 @@ class SpectrumFragment : SerialConnectionFragment(),
         measureTimer.stop()
     }
 
-    private var progressJob: Job? = null
-
     override fun onSpectrumRecordingTime(time: Long) {
         measureMode = SpectrumMeasureMode.Scheduled
         view?.keepScreenOn = true
@@ -1493,7 +1620,7 @@ class SpectrumFragment : SerialConnectionFragment(),
         // Start tracking progress separately
         startProgressUpdate(time)
 
-        progressJob = lifecycleScope.launch {
+        lifecycleScope.launch {
 
             delay(time * 1000L+200L) // Wait for recording time (handled by coroutine)
             // After recording ends
