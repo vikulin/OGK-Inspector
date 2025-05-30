@@ -1,6 +1,25 @@
 | <img src="app/src/main/res/raw/ogk_inspector.svg" alt="Icon" width="64" height="64"> | OGK Inspector |
 |--------------------------------------------------------------------------------------|---------------|
 
+<table>
+  <tr>
+    <td colspan="2" align="center">
+      <img alt="OGK Inspector Spectrum screen view" title="OGK Inspector Spectrum screen view" width="600px" src="docs/Am-241-5m-h.png">
+      <br><b>Am-241 spectrum view</b>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="docs/fwhm.png" alt="FWHM" title="FWHM" width="300px">
+      <br><b>FWHM measurement</b>
+    </td>
+    <td align="center">
+      <img src="docs/logscale.png" alt="LogScale view" title="LogScale view" width="300px">
+      <br><b>LogScale view</b>
+    </td>
+  </tr>
+</table>
+
 **OGK Inspector** is the official Android companion app for [OpenGammaKit](https://github.com/vikulin/OpenGammaKit) spectrometers, designed to interface with supported hardware via USB serial (compatible with Android 7.0+). Built for high-precision diagnostics and calibration workflows, it now includes advanced signal processing tools such as Savitzky-Golay filtering and wavelet-based peak detection.
 
 ---
@@ -60,8 +79,3 @@ Ideal for developers, field technicians, researchers, and educators working with
 ## 📦 Project Status
 
 Actively developed. Contributions, feature requests, and bug reports are welcome!
-
-<p align="center">
-  <br>
-  <img alt="OGK Inspector Spectrum screen view" title="OGK Inspector Spectrum screen view" width="300px" src="docs/Am-241-10m-v.png">
-</p>
