@@ -1,6 +1,9 @@
 package io.github.vikulin.opengammakit
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.graphics.Color
 import android.os.Bundle
 import android.os.Handler
@@ -23,13 +26,37 @@ import android.media.MediaPlayer
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.widget.ImageButton
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.lifecycleScope
 import com.github.mikephil.charting.components.AxisBase
 import com.github.mikephil.charting.components.Description
 import com.github.mikephil.charting.components.YAxis
 import com.github.mikephil.charting.formatter.ValueFormatter
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 import io.github.vikulin.opengammakit.model.OpenGammaKitCommands
 import io.github.vikulin.opengammakit.view.CounterThresholdDialogFragment
+import org.maplibre.android.MapLibre
+import org.maplibre.android.WellKnownTileServer
+import org.maplibre.android.camera.CameraUpdateFactory
+import org.maplibre.android.maps.MapLibreMap
+import org.maplibre.android.maps.MapView
+import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.maps.Style
+import org.maplibre.android.style.layers.PropertyFactory.iconAllowOverlap
+import org.maplibre.android.style.layers.PropertyFactory.iconIgnorePlacement
+import org.maplibre.android.style.layers.PropertyFactory.iconImage
+import org.maplibre.android.style.layers.SymbolLayer
+import org.maplibre.android.style.sources.GeoJsonSource
+import org.maplibre.geojson.Point
 
 class CounterFragment : SerialConnectionFragment(),
     CounterThresholdDialogFragment.SaveThresholdDialogListener,
@@ -39,6 +66,13 @@ class CounterFragment : SerialConnectionFragment(),
     private lateinit var btnThreshold: ImageButton
     private lateinit var currentTimeTextView: TextView
     private lateinit var rateLineChart: LineChart
+    private lateinit var mapView: MapView
+    private lateinit var mapLibreMap: MapLibreMap
+    private lateinit var fusedLocationClient: FusedLocationProviderClient
+    private lateinit var locationCallback: LocationCallback
+    private var geoJsonSource: GeoJsonSource? = null
+
+    private val MAP_STYLE = "https://api.maptiler.com/maps/satellite/style.json?key=xxx"
 
     private val PREF_NAME = "counter_preferences"
     private val KEY_THRESHOLD = "threshold_"
@@ -101,6 +135,15 @@ class CounterFragment : SerialConnectionFragment(),
         outState.putInt("COUNTER_THRESHOLD", threshold)
     }
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        MapLibre.getInstance(
+            requireContext().applicationContext,
+            "unused", // dummy API key if you don't have one
+            WellKnownTileServer.MapLibre
+        )
+        super.onCreate(savedInstanceState)
+    }
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -112,6 +155,8 @@ class CounterFragment : SerialConnectionFragment(),
         btnThreshold = view.findViewById(R.id.btnThreshold)
         currentTimeTextView = view.findViewById(R.id.currentTimeTextView)
         rateLineChart = view.findViewById(R.id.rateLineChart)
+        mapView = view.findViewById(R.id.mapView)
+        mapView.onCreate(savedInstanceState)
 
         btnThreshold.setOnClickListener {
             //set limit line for the threshold
@@ -155,6 +200,87 @@ class CounterFragment : SerialConnectionFragment(),
                 return true
             }
         })
+        mapView.getMapAsync { map ->
+            mapLibreMap = map
+
+            map.setStyle(MAP_STYLE) { style ->
+                // Use the permission launcher instead of deprecated method
+                if (hasLocationPermission()) {
+                    initLocationUpdates()
+                } else {
+                    locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                }
+                initLocationLayer(style)
+            }
+        }
+    }
+
+    private fun initLocationLayer(style: Style) {
+        val drawable = ContextCompat.getDrawable(requireContext(), R.drawable.ic_dot_blue)
+        val bitmap = drawable?.toBitmap()
+
+        if (bitmap != null) {
+            style.addImage("location-icon", bitmap)
+        }
+
+        val geoJsonSource = GeoJsonSource("location-source")
+        style.addSource(geoJsonSource)
+
+        val symbolLayer = SymbolLayer("location-layer", "location-source").withProperties(
+            iconImage("location-icon"),
+            iconAllowOverlap(true),
+            iconIgnorePlacement(true)
+        )
+        style.addLayer(symbolLayer)
+
+        this.geoJsonSource = geoJsonSource
+    }
+
+
+    private fun hasLocationPermission(): Boolean {
+        val context = requireContext()
+        return ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun initLocationUpdates() {
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(requireContext())
+
+        val locationRequest = LocationRequest.Builder(
+            Priority.PRIORITY_HIGH_ACCURACY,
+            10000L
+        ).apply {
+            setMinUpdateIntervalMillis(5000L)
+        }.build()
+
+        locationCallback = object : LocationCallback() {
+            override fun onLocationResult(result: LocationResult) {
+                val location = result.lastLocation ?: return
+                val latLng = LatLng(location.latitude, location.longitude)
+                mapLibreMap.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 16.0))
+                geoJsonSource?.setGeoJson(Point.fromLngLat(location.longitude, location.latitude))
+            }
+        }
+
+        // At this point permission has already been granted
+        if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            fusedLocationClient.requestLocationUpdates(
+                locationRequest,
+                locationCallback,
+                Looper.getMainLooper()
+            )
+        }
+    }
+
+    private val locationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            initLocationUpdates()
+        } else {
+            Toast.makeText(requireContext(), "Location permission denied", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun setCounterThreshold(threshold: Int){
@@ -351,5 +477,36 @@ class CounterFragment : SerialConnectionFragment(),
 
     override fun onReconnect() {
         super.onReconnect(CounterFragment(), "counter")
+    }
+
+    override fun onStart() {
+        super.onStart()
+        mapView.onStart()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        mapView.onResume()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        mapView.onPause()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        mapView.onStop()
+        fusedLocationClient.removeLocationUpdates(locationCallback)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        mapView.onDestroy()
+    }
+
+    override fun onLowMemory() {
+        super.onLowMemory()
+        mapView.onLowMemory()
     }
 }
