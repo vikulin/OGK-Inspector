@@ -1,6 +1,8 @@
 package io.github.vikulin.opengammakit
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Bundle
 import android.os.Handler
@@ -23,13 +25,41 @@ import android.media.MediaPlayer
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.widget.ImageButton
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.toBitmap
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import com.github.mikephil.charting.components.AxisBase
 import com.github.mikephil.charting.components.Description
 import com.github.mikephil.charting.components.YAxis
 import com.github.mikephil.charting.formatter.ValueFormatter
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 import io.github.vikulin.opengammakit.model.OpenGammaKitCommands
 import io.github.vikulin.opengammakit.view.CounterThresholdDialogFragment
+import io.github.vikulin.opengammakit.viewmodel.MapViewModel
+import org.maplibre.android.MapLibre
+import org.maplibre.android.WellKnownTileServer
+import org.maplibre.android.camera.CameraPosition
+import org.maplibre.android.camera.CameraUpdateFactory
+import org.maplibre.android.maps.MapLibreMap
+import org.maplibre.android.maps.MapView
+import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.maps.Style
+import org.maplibre.android.style.layers.PropertyFactory.iconAllowOverlap
+import org.maplibre.android.style.layers.PropertyFactory.iconIgnorePlacement
+import org.maplibre.android.style.layers.PropertyFactory.iconImage
+import org.maplibre.android.style.layers.SymbolLayer
+import org.maplibre.android.style.sources.GeoJsonSource
+import org.maplibre.geojson.FeatureCollection
+import org.maplibre.geojson.Point
 
 class CounterFragment : SerialConnectionFragment(),
     CounterThresholdDialogFragment.SaveThresholdDialogListener,
@@ -37,8 +67,17 @@ class CounterFragment : SerialConnectionFragment(),
 
     private lateinit var currentRateTextView: TextView
     private lateinit var btnThreshold: ImageButton
+    private lateinit var btnMap: ImageButton
     private lateinit var currentTimeTextView: TextView
     private lateinit var rateLineChart: LineChart
+    private lateinit var mapView: MapView
+    private lateinit var mapLibreMap: MapLibreMap
+    private lateinit var fusedLocationClient: FusedLocationProviderClient
+    private lateinit var locationCallback: LocationCallback
+    private var geoJsonSource: GeoJsonSource? = null
+    private lateinit var mapViewModel: MapViewModel
+
+    private val MAP_STYLE = "https://api.maptiler.com/maps/satellite/style.json?key=xxx"
 
     private val PREF_NAME = "counter_preferences"
     private val KEY_THRESHOLD = "threshold_"
@@ -50,6 +89,9 @@ class CounterFragment : SerialConnectionFragment(),
     private lateinit var gestureDetector: GestureDetector
     private lateinit var lineDataSet: LineDataSet
     private var chooseThreshold = false
+    private var enableMapView = false
+    private var savedCameraPosition: CameraPosition? = null
+
 
     override fun onConnectionSuccess() {
         super.onConnectionSuccess()
@@ -99,28 +141,21 @@ class CounterFragment : SerialConnectionFragment(),
         }.toTypedArray()
         outState.putSerializable("GRAPH_ENTRIES", entriesArray)
         outState.putInt("COUNTER_THRESHOLD", threshold)
+        outState.putBoolean("ENABLE_MAP_VIEW", enableMapView)
     }
 
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View {
-        val view = inflater.inflate(R.layout.fragment_counter, container, false)
-
-        currentRateTextView = view.findViewById(R.id.currentRateTextView)
-        btnThreshold = view.findViewById(R.id.btnThreshold)
-        currentTimeTextView = view.findViewById(R.id.currentTimeTextView)
-        rateLineChart = view.findViewById(R.id.rateLineChart)
-
-        btnThreshold.setOnClickListener {
-            //set limit line for the threshold
-            val counterThresholdDialog = CounterThresholdDialogFragment.Companion.newInstance(threshold)
-            counterThresholdDialog.show(childFragmentManager, "counter_threshold_dialog_fragment")
-        }
-
-        setupLineChart()
-
+    override fun onCreate(savedInstanceState: Bundle?) {
+        MapLibre.getInstance(
+            requireContext().applicationContext,
+            "unused", // dummy API key if you don't have one
+            WellKnownTileServer.MapLibre
+        )
+        savedInstanceState?.getInt("COUNTER_THRESHOLD")?.let {
+            threshold = it
+        } ?: run { }
+        savedInstanceState?.getBoolean("ENABLE_MAP_VIEW")?.let {
+            enableMapView = it
+        } ?: run { }
         // Restore graph data from savedInstanceState
         savedInstanceState?.getSerializable("GRAPH_ENTRIES")?.let { data ->
             val entriesArray = data as Array<FloatArray>
@@ -132,10 +167,38 @@ class CounterFragment : SerialConnectionFragment(),
             rateLineChart.notifyDataSetChanged()
             rateLineChart.invalidate()
         }
+        super.onCreate(savedInstanceState)
+    }
 
-        savedInstanceState?.getInt("COUNTER_THRESHOLD")?.let {
-            threshold = it
-        } ?: run { }
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        val view = inflater.inflate(R.layout.fragment_counter, container, false)
+
+        currentRateTextView = view.findViewById(R.id.currentRateTextView)
+        btnThreshold = view.findViewById(R.id.btnThreshold)
+        btnMap = view.findViewById(R.id.btnMap)
+        currentTimeTextView = view.findViewById(R.id.currentTimeTextView)
+        rateLineChart = view.findViewById(R.id.rateLineChart)
+
+        btnThreshold.setOnClickListener {
+            //set limit line for the threshold
+            val counterThresholdDialog = CounterThresholdDialogFragment.Companion.newInstance(threshold)
+            counterThresholdDialog.show(childFragmentManager, "counter_threshold_dialog_fragment")
+        }
+
+        btnMap.setOnClickListener {
+            enableMapView = !enableMapView
+            if(enableMapView) {
+                activateLocationAndShowMap()
+            } else {
+                deactivateLocationAndHideMap()
+            }
+        }
+
+        setupLineChart()
 
         return view
     }
@@ -155,6 +218,126 @@ class CounterFragment : SerialConnectionFragment(),
                 return true
             }
         })
+        mapViewModel = ViewModelProvider(this)[MapViewModel::class.java]
+        mapView = view.findViewById(R.id.mapView)
+        mapView.onCreate(savedInstanceState)
+
+        mapView.getMapAsync { map ->
+            mapLibreMap = map
+
+            map.setStyle(MAP_STYLE) { style ->
+                initLocationLayer(style)
+
+                mapViewModel.cameraPosition?.let {
+                    mapLibreMap.moveCamera(CameraUpdateFactory.newCameraPosition(it))
+                }
+
+                mapViewModel.styleLoaded = true
+            }
+        }
+        if(enableMapView) {
+            activateLocationAndShowMap()
+        } else {
+            deactivateLocationAndHideMap()
+        }
+    }
+
+    private fun stopLocationUpdates() {
+        if (::fusedLocationClient.isInitialized && ::locationCallback.isInitialized) {
+            fusedLocationClient.removeLocationUpdates(locationCallback)
+        }
+
+        // Clear location dot on map (if shown)
+        geoJsonSource?.setGeoJson(FeatureCollection.fromFeatures(arrayOf()))
+    }
+
+    private fun hideMap() {
+        mapView.visibility = View.GONE
+    }
+
+    private fun deactivateLocationAndHideMap() {
+        stopLocationUpdates()
+        hideMap()
+    }
+
+    private fun activateLocationAndShowMap() {
+        // Show the MapView
+        mapView.visibility = View.VISIBLE
+
+        // Restart location updates if permission granted
+        if (hasLocationPermission()) {
+            startLocationUpdates()
+        } else {
+            locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+    }
+
+    private fun startLocationUpdates() {
+        if (!::fusedLocationClient.isInitialized) {
+            fusedLocationClient = LocationServices.getFusedLocationProviderClient(requireContext())
+        }
+
+        val locationRequest = LocationRequest.Builder(
+            Priority.PRIORITY_HIGH_ACCURACY,
+            10000L
+        ).setMinUpdateIntervalMillis(5000L).build()
+
+        locationCallback = object : LocationCallback() {
+            override fun onLocationResult(result: LocationResult) {
+                val location = result.lastLocation ?: return
+                val latLng = LatLng(location.latitude, location.longitude)
+
+                mapLibreMap.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 16.0))
+                geoJsonSource?.setGeoJson(Point.fromLngLat(location.longitude, location.latitude))
+            }
+        }
+
+        if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            fusedLocationClient.requestLocationUpdates(
+                locationRequest,
+                locationCallback,
+                Looper.getMainLooper()
+            )
+        }
+    }
+
+    private fun initLocationLayer(style: Style) {
+        val drawable = ContextCompat.getDrawable(requireContext(), R.drawable.ic_dot_blue)
+        val bitmap = drawable?.toBitmap()
+
+        if (bitmap != null) {
+            style.addImage("location-icon", bitmap)
+        }
+
+        val geoJsonSource = GeoJsonSource("location-source")
+        style.addSource(geoJsonSource)
+
+        val symbolLayer = SymbolLayer("location-layer", "location-source").withProperties(
+            iconImage("location-icon"),
+            iconAllowOverlap(true),
+            iconIgnorePlacement(true)
+        )
+        style.addLayer(symbolLayer)
+
+        this.geoJsonSource = geoJsonSource
+    }
+
+
+    private fun hasLocationPermission(): Boolean {
+        val context = requireContext()
+        return ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private val locationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            startLocationUpdates()
+        } else {
+            Toast.makeText(requireContext(), "Location permission denied", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun setCounterThreshold(threshold: Int){
@@ -168,6 +351,7 @@ class CounterFragment : SerialConnectionFragment(),
         }
         rateLineChart.axisLeft.removeAllLimitLines()
         rateLineChart.axisLeft.addLimitLine(exceedLine)
+        rateLineChart.invalidate()
     }
 
     private fun setupChartTouchListener() {
@@ -351,5 +535,39 @@ class CounterFragment : SerialConnectionFragment(),
 
     override fun onReconnect() {
         super.onReconnect(CounterFragment(), "counter")
+    }
+
+    override fun onStart() {
+        super.onStart()
+        mapView.onStart()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        mapView.onResume()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        if (::mapLibreMap.isInitialized) {
+            mapViewModel.cameraPosition = mapLibreMap.cameraPosition
+        }
+        mapView.onPause()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        mapView.onStop()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        stopLocationUpdates()
+        mapView.onDestroy()
+    }
+
+    override fun onLowMemory() {
+        super.onLowMemory()
+        mapView.onLowMemory()
     }
 }
