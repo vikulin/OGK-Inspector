@@ -1,6 +1,7 @@
 package io.github.vikulin.opengammakit
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Color
@@ -29,7 +30,6 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import com.github.mikephil.charting.components.AxisBase
@@ -42,24 +42,12 @@ import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import com.google.android.gms.maps.GoogleMap
+import com.google.android.gms.maps.MapView
 import io.github.vikulin.opengammakit.model.OpenGammaKitCommands
 import io.github.vikulin.opengammakit.view.CounterThresholdDialogFragment
 import io.github.vikulin.opengammakit.viewmodel.MapViewModel
-import org.maplibre.android.MapLibre
-import org.maplibre.android.WellKnownTileServer
-import org.maplibre.android.camera.CameraPosition
-import org.maplibre.android.camera.CameraUpdateFactory
-import org.maplibre.android.maps.MapLibreMap
-import org.maplibre.android.maps.MapView
-import org.maplibre.android.geometry.LatLng
-import org.maplibre.android.maps.Style
-import org.maplibre.android.style.layers.PropertyFactory.iconAllowOverlap
-import org.maplibre.android.style.layers.PropertyFactory.iconIgnorePlacement
-import org.maplibre.android.style.layers.PropertyFactory.iconImage
-import org.maplibre.android.style.layers.SymbolLayer
-import org.maplibre.android.style.sources.GeoJsonSource
-import org.maplibre.geojson.FeatureCollection
-import org.maplibre.geojson.Point
+import com.google.android.gms.maps.CameraUpdateFactory
 
 class CounterFragment : SerialConnectionFragment(),
     CounterThresholdDialogFragment.SaveThresholdDialogListener,
@@ -71,13 +59,10 @@ class CounterFragment : SerialConnectionFragment(),
     private lateinit var currentTimeTextView: TextView
     private lateinit var rateLineChart: LineChart
     private lateinit var mapView: MapView
-    private lateinit var mapLibreMap: MapLibreMap
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationCallback: LocationCallback
-    private var geoJsonSource: GeoJsonSource? = null
     private lateinit var mapViewModel: MapViewModel
-
-    private val MAP_STYLE = "https://api.maptiler.com/maps/satellite/style.json?key=xxx"
+    private lateinit var googleMap: GoogleMap
 
     private val PREF_NAME = "counter_preferences"
     private val KEY_THRESHOLD = "threshold_"
@@ -89,9 +74,7 @@ class CounterFragment : SerialConnectionFragment(),
     private lateinit var gestureDetector: GestureDetector
     private lateinit var lineDataSet: LineDataSet
     private var chooseThreshold = false
-    private var enableMapView = false
-    private var savedCameraPosition: CameraPosition? = null
-
+    private var mapType = -1
 
     override fun onConnectionSuccess() {
         super.onConnectionSuccess()
@@ -141,20 +124,15 @@ class CounterFragment : SerialConnectionFragment(),
         }.toTypedArray()
         outState.putSerializable("GRAPH_ENTRIES", entriesArray)
         outState.putInt("COUNTER_THRESHOLD", threshold)
-        outState.putBoolean("ENABLE_MAP_VIEW", enableMapView)
+        outState.putInt("ENABLE_MAP_VIEW", mapType)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        MapLibre.getInstance(
-            requireContext().applicationContext,
-            "unused", // dummy API key if you don't have one
-            WellKnownTileServer.MapLibre
-        )
         savedInstanceState?.getInt("COUNTER_THRESHOLD")?.let {
             threshold = it
         } ?: run { }
-        savedInstanceState?.getBoolean("ENABLE_MAP_VIEW")?.let {
-            enableMapView = it
+        savedInstanceState?.getInt("ENABLE_MAP_VIEW")?.let {
+            mapType = it
         } ?: run { }
         // Restore graph data from savedInstanceState
         savedInstanceState?.getSerializable("GRAPH_ENTRIES")?.let { data ->
@@ -190,12 +168,21 @@ class CounterFragment : SerialConnectionFragment(),
         }
 
         btnMap.setOnClickListener {
-            enableMapView = !enableMapView
-            if(enableMapView) {
-                activateLocationAndShowMap()
-            } else {
-                deactivateLocationAndHideMap()
+            when(mapType){
+                GoogleMap.MAP_TYPE_SATELLITE -> {
+                    mapType = GoogleMap.MAP_TYPE_TERRAIN
+                    activateLocationAndShowMap()
+                }
+                GoogleMap.MAP_TYPE_TERRAIN -> {
+                    mapType = -1
+                    deactivateLocationAndHideMap()
+                }
+                -1 -> {
+                    mapType = GoogleMap.MAP_TYPE_SATELLITE
+                    activateLocationAndShowMap()
+                }
             }
+
         }
 
         setupLineChart()
@@ -203,12 +190,14 @@ class CounterFragment : SerialConnectionFragment(),
         return view
     }
 
+    @SuppressLint("MissingPermission")
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         view.keepScreenOn = true
+
         gestureDetector = GestureDetector(requireContext(), object : GestureDetector.SimpleOnGestureListener() {
             override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
-                if(chooseThreshold) {
+                if (chooseThreshold) {
                     val touchPoint = getTouchPoint(e.y)
                     threshold = touchPoint.toInt()
                     setCounterThreshold(threshold)
@@ -218,57 +207,15 @@ class CounterFragment : SerialConnectionFragment(),
                 return true
             }
         })
+
         mapViewModel = ViewModelProvider(this)[MapViewModel::class.java]
         mapView = view.findViewById(R.id.mapView)
         mapView.onCreate(savedInstanceState)
 
-        mapView.getMapAsync { map ->
-            mapLibreMap = map
-
-            map.setStyle(MAP_STYLE) { style ->
-                initLocationLayer(style)
-
-                mapViewModel.cameraPosition?.let {
-                    mapLibreMap.moveCamera(CameraUpdateFactory.newCameraPosition(it))
-                }
-
-                mapViewModel.styleLoaded = true
-            }
-        }
-        if(enableMapView) {
+        if (mapType > -1) {
             activateLocationAndShowMap()
         } else {
             deactivateLocationAndHideMap()
-        }
-    }
-
-    private fun stopLocationUpdates() {
-        if (::fusedLocationClient.isInitialized && ::locationCallback.isInitialized) {
-            fusedLocationClient.removeLocationUpdates(locationCallback)
-        }
-
-        // Clear location dot on map (if shown)
-        geoJsonSource?.setGeoJson(FeatureCollection.fromFeatures(arrayOf()))
-    }
-
-    private fun hideMap() {
-        mapView.visibility = View.GONE
-    }
-
-    private fun deactivateLocationAndHideMap() {
-        stopLocationUpdates()
-        hideMap()
-    }
-
-    private fun activateLocationAndShowMap() {
-        // Show the MapView
-        mapView.visibility = View.VISIBLE
-
-        // Restart location updates if permission granted
-        if (hasLocationPermission()) {
-            startLocationUpdates()
-        } else {
-            locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
         }
     }
 
@@ -285,55 +232,65 @@ class CounterFragment : SerialConnectionFragment(),
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
                 val location = result.lastLocation ?: return
-                val latLng = LatLng(location.latitude, location.longitude)
-
-                mapLibreMap.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 16.0))
-                geoJsonSource?.setGeoJson(Point.fromLngLat(location.longitude, location.latitude))
+                val latLng = com.google.android.gms.maps.model.LatLng(location.latitude, location.longitude)
+                googleMap.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 16f))
             }
         }
 
-        if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) ==
-            PackageManager.PERMISSION_GRANTED
+        if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION)
+            == PackageManager.PERMISSION_GRANTED
         ) {
-            fusedLocationClient.requestLocationUpdates(
-                locationRequest,
-                locationCallback,
-                Looper.getMainLooper()
-            )
+            fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper())
         }
     }
 
-    private fun initLocationLayer(style: Style) {
-        val drawable = ContextCompat.getDrawable(requireContext(), R.drawable.ic_dot_blue)
-        val bitmap = drawable?.toBitmap()
-
-        if (bitmap != null) {
-            style.addImage("location-icon", bitmap)
+    private fun stopLocationUpdates() {
+        if (::fusedLocationClient.isInitialized && ::locationCallback.isInitialized) {
+            fusedLocationClient.removeLocationUpdates(locationCallback)
         }
-
-        val geoJsonSource = GeoJsonSource("location-source")
-        style.addSource(geoJsonSource)
-
-        val symbolLayer = SymbolLayer("location-layer", "location-source").withProperties(
-            iconImage("location-icon"),
-            iconAllowOverlap(true),
-            iconIgnorePlacement(true)
-        )
-        style.addLayer(symbolLayer)
-
-        this.geoJsonSource = geoJsonSource
     }
 
+    @SuppressLint("MissingPermission")
+    private fun activateLocationAndShowMap() {
+        mapView.getMapAsync { googleMap ->
+            this@CounterFragment.googleMap = googleMap
+
+            googleMap.uiSettings.isMyLocationButtonEnabled = false
+            googleMap.mapType = mapType
+
+            if (hasLocationPermission()) {
+                googleMap.isMyLocationEnabled = true
+                mapViewModel.cameraPosition?.let {
+                    googleMap.moveCamera(CameraUpdateFactory.newCameraPosition(it))
+                }
+            } else {
+                locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+            }
+        }
+        mapView.visibility = View.VISIBLE
+        if (hasLocationPermission()) {
+            startLocationUpdates()
+        } else {
+            locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+    }
+
+    private fun deactivateLocationAndHideMap() {
+        stopLocationUpdates()
+        mapView.visibility = View.GONE
+    }
 
     private fun hasLocationPermission(): Boolean {
         val context = requireContext()
         return ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
     }
 
+    @SuppressLint("MissingPermission")
     private val locationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
+            googleMap.isMyLocationEnabled = true
             startLocationUpdates()
         } else {
             Toast.makeText(requireContext(), "Location permission denied", Toast.LENGTH_SHORT).show()
@@ -549,8 +506,8 @@ class CounterFragment : SerialConnectionFragment(),
 
     override fun onPause() {
         super.onPause()
-        if (::mapLibreMap.isInitialized) {
-            mapViewModel.cameraPosition = mapLibreMap.cameraPosition
+        if (::googleMap.isInitialized) {
+            mapViewModel.cameraPosition = googleMap.cameraPosition
         }
         mapView.onPause()
     }

@@ -1,10 +1,10 @@
 package io.github.vikulin.opengammakit.viewmodel
 
 import androidx.lifecycle.ViewModel
-import com.github.mikephil.charting.data.Entry
-import org.maplibre.android.camera.CameraPosition
+import com.google.android.gms.maps.GoogleMap
+import com.google.android.gms.maps.model.CameraPosition
 
 class MapViewModel : ViewModel() {
     var cameraPosition: CameraPosition? = null
-    var styleLoaded = false
+    var mapType = GoogleMap.MAP_TYPE_SATELLITE
 }
