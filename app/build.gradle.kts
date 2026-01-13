@@ -6,14 +6,14 @@ plugins {
 
 android {
     namespace = "io.github.vikulin.opengammakit"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "io.github.vikulin.opengammakit"
         minSdk = 24
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 23
-        versionName = "1.2.2"
+        versionName = "1.2.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         setProperty("archivesBaseName", "ogk-inspector-$versionName")
     }
