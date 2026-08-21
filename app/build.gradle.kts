@@ -4,6 +4,8 @@ plugins {
     kotlin("plugin.serialization") version "2.1.20"
 }
 
+val appVersionName = "1.2.3"
+
 android {
     namespace = "io.github.vikulin.opengammakit"
     compileSdk = 36
@@ -13,9 +15,8 @@ android {
         minSdk = 24
         targetSdk = 36
         versionCode = 23
-        versionName = "1.2.3"
+        versionName = appVersionName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        setProperty("archivesBaseName", "ogk-inspector-$versionName")
     }
 
     buildTypes {
@@ -38,6 +39,12 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+}
+
+// archivesBaseName was removed as a dynamic Project property in Gradle 9;
+// the base plugin's archivesName is the supported replacement.
+base {
+    archivesName.set("ogk-inspector-$appVersionName")
 }
 
 dependencies {
