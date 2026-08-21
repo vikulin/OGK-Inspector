@@ -2,14 +2,18 @@
 <resources>
     <string name="app_title">OpenGammaKit Inspector</string>
     <string name="app_name">OGK Inspector</string>
-    <string name="devices">USB Devices</string>
-    <string name="usb_devices">USB Devices</string>
-    <string name="no_usb_devices">No USB devices found</string>
-    <string name="bluetooth_devices">Bluetooth Devices</string>
-    <string name="no_bluetooth_devices">No Bluetooth devices found</string>
-    <string name="scan_bluetooth">Scan for Bluetooth devices</string>
+    <string name="devices">Devices</string>
+    <string name="usb_device_label">OGK</string>
+    <string name="no_devices">No devices found</string>
+    <string name="device_type">Connection type</string>
+    <string name="unknown_bluetooth_device">Bluetooth device</string>
+    <string name="refresh_devices">Refresh devices</string>
     <string name="bluetooth_permission_denied">Bluetooth permission denied</string>
     <string name="bluetooth_scan_failed">Could not start Bluetooth scan</string>
+    <string name="close">Close</string>
+    <string name="connecting_to">Connecting to %1$s…</string>
+    <string name="connected">Connected</string>
+    <string name="connection_failed">Connection failed</string>
     <string name="calibration">Calibration</string>
     <string name="fwhm">Fwhm</string>
     <string name="live">Live</string>

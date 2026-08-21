@@ -146,13 +146,15 @@ class BleSerialTransport(private val address: String) : DeviceTransport {
     }
 
     private fun writeCharacteristic(g: BluetoothGatt, characteristic: BluetoothGattCharacteristic, value: ByteArray) {
+        // WESPP's RX characteristic is "UnacknowledgedData" mode (writeWithoutResponse) -
+        // see BleConstants / Wurth's Proteus-Connect WESPPProfile.ts.
         if (Build.VERSION.SDK_INT >= 33) {
-            g.writeCharacteristic(characteristic, value, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
+            g.writeCharacteristic(characteristic, value, BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE)
         } else {
             @Suppress("DEPRECATION")
             characteristic.value = value
             @Suppress("DEPRECATION")
-            characteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+            characteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
             @Suppress("DEPRECATION")
             g.writeCharacteristic(characteristic)
         }

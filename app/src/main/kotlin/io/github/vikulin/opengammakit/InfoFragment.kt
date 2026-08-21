@@ -1,6 +1,7 @@
 package io.github.vikulin.opengammakit
 
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -8,9 +9,9 @@ import android.widget.ListView
 import io.github.vikulin.opengammakit.adapter.DeviceInfoAdapter
 import io.github.vikulin.opengammakit.model.OpenGammaKitCommands
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonPrimitive
-import kotlin.text.iterator
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 open class InfoFragment() : SerialConnectionFragment() {
 
@@ -19,6 +20,7 @@ open class InfoFragment() : SerialConnectionFragment() {
     private var productId: String? = null
 
     private val buffer = StringBuilder()
+    private var openBraces = 0
 
     private lateinit var listView: ListView
     internal var deviceInfoList = LinkedHashMap<String, String>()
@@ -41,83 +43,66 @@ open class InfoFragment() : SerialConnectionFragment() {
     override fun onConnectionSuccess() {
         super.onConnectionSuccess()
         super.setDtr(true)
-        super.send((OpenGammaKitCommands().setOut("off")).toByteArray())
-        super.send((OpenGammaKitCommands().readInfo()).toByteArray())
+        super.send(OpenGammaKitCommands().requestStatus().toByteArray())
     }
 
-
     /**
-     * Parses a JSON array string where each element contains a key-value pair in the format "key|value".
-     *
-     * The method expects the input string to be a valid JSON array of strings,
-     * with each string containing a key and value separated by the '|' character.
-     * It extracts these pairs and returns them in a map, preserving the order of appearance.
-     *
-     * Example input:
-     * ```
-     * ["CPS|123", "TEMP|25.6", "STATUS|OK"]
-     * ```
-     * Resulting map:
-     * ```
-     * {CPS=123, TEMP=25.6, STATUS=OK}
-     * ```
-     *
-     * @param input A JSON array string with elements formatted as "key|value".
-     * @return A [Map] of parsed key-value pairs, preserving the insertion order.
-     * @throws kotlinx.serialization.json.JsonDecodingException if the input is not a valid JSON array.
+     * Parses a single JSON "status" message (Core/Src/protocol.c Protocol_SerializeStatus()):
+     * {"type":"status","battery_percent":<uint>,"battery_voltage":<uint>,
+     *  "temperature":<float>,"pulse_count":<uint>,"cps":<uint>}
      */
-    fun parseOutput(input: String): Map<String, String> {
-        val result = LinkedHashMap<String, String>()
-        val cleaned = input.trim()
-
-        // Ensure it's a valid JSON array
-        val json = Json{ allowTrailingComma = true }.decodeFromString(JsonArray.serializer(), cleaned)
-
-        for (element in json) {
-            val text = (element as JsonPrimitive).content
-            val parts = text.split("|", limit = 2)
-            if (parts.size == 2) {
-                val key = parts[0].trim()
-                val value = parts[1].trim()
-                result[key] = value
-            }
+    private fun handleStatusMessage(json: String) {
+        val root = Json.parseToJsonElement(json).jsonObject
+        if (root["type"]?.jsonPrimitive?.contentOrNull != "status") {
+            return
         }
 
-        return result
+        val statusInfo = LinkedHashMap<String, String>()
+        root["battery_percent"]?.jsonPrimitive?.contentOrNull?.let { statusInfo["Battery"] = "$it%" }
+        root["battery_voltage"]?.jsonPrimitive?.contentOrNull?.let { statusInfo["Battery Voltage"] = "$it mV" }
+        root["temperature"]?.jsonPrimitive?.contentOrNull?.let { statusInfo["Temperature"] = "$it °C" }
+        root["pulse_count"]?.jsonPrimitive?.contentOrNull?.let { statusInfo["Pulse Count"] = it }
+        root["cps"]?.jsonPrimitive?.contentOrNull?.let { statusInfo["CPS"] = it }
+
+        deviceInfoList.putAll(statusInfo)
+        deviceInfoList["Serial Number"] = serialNumber.toString()
+        getDeviceInfo(deviceInfoList)
+        refresh()
     }
 
     override fun receive(bytes: ByteArray) {
-        //Log.d("Test","received ${bytes.size}")
-        if (bytes.isNotEmpty()) {
-            val inputString = bytes.toString(Charsets.UTF_8)
-            //Log.d("Test","received ${bytes.toString(Charsets.UTF_8)}")
-            val EOF = '\u0000'
-            for (char in inputString) {
-                when (char) {
-                    '[' -> {
-                        buffer.clear()
-                        buffer.append(char)
-                    }
-                    EOF -> {
-                        try {
-                            val deviceInfo = parseOutput(buffer.toString())
-                            deviceInfo.forEach {
-                                deviceInfoList[it.key] = it.value
-                            }
-                            deviceInfoList["Serial Number"] = serialNumber.toString()
-                            getDeviceInfo(deviceInfoList)
-                            refresh()
-                        } catch (e: Exception){
-                            e.printStackTrace()
-                        } finally {
-                            buffer.clear()
-                        }
-                    }
-                    '\r', '\n' -> {}
-                    else -> {
+        if (bytes.isEmpty()) return
+        val inputString = bytes.toString(Charsets.UTF_8)
+        for (char in inputString) {
+            when (char) {
+                '{' -> {
+                    openBraces++
+                    buffer.append(char)
+                }
+                '}' -> {
+                    openBraces--
+                    buffer.append(char)
+                }
+                '\r', '\n' -> {} // Ignore these
+                else -> {
+                    if (openBraces > 0) {
                         buffer.append(char)
                     }
                 }
+            }
+            if (openBraces == 0 && buffer.isNotEmpty()) {
+                try {
+                    handleStatusMessage(buffer.toString())
+                } catch (e: Exception) {
+                    Log.e("InfoFragment", "Failed to parse status message: ${e.message}")
+                } finally {
+                    buffer.clear()
+                }
+            }
+            if (openBraces < 0) {
+                Log.e("InfoFragment", "openBraces issue, discarding buffer")
+                buffer.clear()
+                openBraces = 0
             }
         }
     }

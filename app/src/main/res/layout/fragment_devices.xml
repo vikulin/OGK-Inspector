@@ -6,101 +6,53 @@
     android:orientation="vertical">
 
     <LinearLayout
-        android:id="@+id/deviceListsContainer"
+        android:id="@+id/deviceListHeader"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:orientation="vertical"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toTopOf="@+id/imageButtonsScroll">
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        app:layout_constraintTop_toTopOf="parent">
 
         <TextView
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:paddingStart="16dp"
-            android:paddingTop="8dp"
-            android:paddingBottom="4dp"
-            android:text="@string/usb_devices"
+            android:layout_weight="1"
+            android:paddingVertical="8dp"
+            android:text="@string/devices"
             android:textStyle="bold"
             android:textAppearance="@style/TextAppearance.AppCompat.Medium"/>
 
-        <FrameLayout
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1">
-
-            <ListView
-                android:id="@android:id/list"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:divider="@android:color/darker_gray"
-                android:dividerHeight="1dp"/>
-
-            <TextView
-                android:id="@+id/empty"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:text="@string/no_usb_devices"
-                android:textSize="18sp"
-                android:gravity="center"
-                android:textAppearance="@style/TextAppearance.AppCompat.Medium"/>
-        </FrameLayout>
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="@android:color/darker_gray"/>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:paddingStart="16dp"
-            android:paddingTop="4dp">
-
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/bluetooth_devices"
-                android:textStyle="bold"
-                android:textAppearance="@style/TextAppearance.AppCompat.Medium"/>
-
-            <ImageButton
-                android:id="@+id/btnScanBle"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:background="?selectableItemBackgroundBorderless"
-                android:contentDescription="@string/scan_bluetooth"
-                app:srcCompat="@drawable/ic_bluetooth"
-                app:tint="@color/colorPrimary" />
-        </LinearLayout>
-
-        <FrameLayout
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1">
-
-            <ListView
-                android:id="@+id/bleList"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:divider="@android:color/darker_gray"
-                android:dividerHeight="1dp"/>
-
-            <TextView
-                android:id="@+id/bleEmpty"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:text="@string/no_bluetooth_devices"
-                android:textSize="18sp"
-                android:gravity="center"
-                android:textAppearance="@style/TextAppearance.AppCompat.Medium"/>
-        </FrameLayout>
-
+        <ImageButton
+            android:id="@+id/btnScanBle"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?selectableItemBackgroundBorderless"
+            android:contentDescription="@string/refresh_devices"
+            app:srcCompat="@drawable/ic_refresh"
+            app:tint="@color/colorPrimary" />
     </LinearLayout>
+
+    <ListView
+        android:id="@android:id/list"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:divider="@android:color/darker_gray"
+        android:dividerHeight="1dp"
+        app:layout_constraintTop_toBottomOf="@id/deviceListHeader"
+        app:layout_constraintBottom_toTopOf="@+id/imageButtonsScroll"/>
+
+    <TextView
+        android:id="@+id/empty"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/no_devices"
+        android:textSize="18sp"
+        android:gravity="center"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/deviceListHeader"
+        android:textAppearance="@style/TextAppearance.AppCompat.Medium"/>
 
     <ScrollView
         android:id="@+id/imageButtonsScroll"

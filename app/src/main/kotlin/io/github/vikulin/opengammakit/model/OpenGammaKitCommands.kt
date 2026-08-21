@@ -1,6 +1,10 @@
 package io.github.vikulin.opengammakit.model
 
 class OpenGammaKitCommands {
+    // JSON command protocol (see REQUIREMENTS.md 6.3 and Core/Src/system_controller.c
+    // System_HandleCommand()), as opposed to the legacy text commands below.
+    fun requestStatus(): String = "{\"type\":\"command\",\"command\":\"request_status\"}\n"
+
     fun readSpectrum(): String = "read spectrum\n"
     fun readSettings(): String = "read settings\n"
     fun readInfo(): String = "read info\n"

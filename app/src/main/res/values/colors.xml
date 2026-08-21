@@ -11,5 +11,6 @@
     <color name="colorStatusText">#FFDB58</color>
     <color name="bg">#DDDDDD</color>
     <color name="stroke">#CC000000</color>
+    <color name="colorConnected">#4CAF50</color>
 
 </resources>

@@ -8,9 +8,11 @@ import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import com.hoho.android.usbserial.driver.UsbSerialPort
+import io.github.vikulin.opengammakit.hardware.ConnectionStateRegistry
 import io.github.vikulin.opengammakit.hardware.DeviceTransport
 import io.github.vikulin.opengammakit.hardware.ble.BleSerialTransport
 import io.github.vikulin.opengammakit.hardware.usb.UsbSerialTransport
+import io.github.vikulin.opengammakit.view.ConnectingDialogFragment
 import io.github.vikulin.opengammakit.view.ReconnectDeviceDialogFragment
 import java.util.EnumSet
 
@@ -24,6 +26,7 @@ abstract class SerialConnectionFragment : Fragment(),
     internal var withIoManager = false
     internal var connectionType = CONNECTION_TYPE_USB
     internal var bleAddress: String? = null
+    internal var bleName: String? = null
 
     private val mainLooper = Handler(Looper.getMainLooper())
     private lateinit var controlLines: ControlLines
@@ -31,6 +34,8 @@ abstract class SerialConnectionFragment : Fragment(),
 
     internal var connected = false
     internal var serialNumber: String? = null
+    private var connectingDialog: ConnectingDialogFragment? = null
+    private var lastStatusMessage: String = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,6 +48,7 @@ abstract class SerialConnectionFragment : Fragment(),
             withIoManager = it.getBoolean("withIoManager")
             connectionType = it.getString("connectionType", CONNECTION_TYPE_USB)
             bleAddress = it.getString("bleAddress")
+            bleName = it.getString("bleName")
         }
         controlLines = ControlLines()
         transport = when (connectionType) {
@@ -79,7 +85,18 @@ abstract class SerialConnectionFragment : Fragment(),
     abstract fun receive(bytes: ByteArray)
 
     private fun connect() {
+        if (connectionType == CONNECTION_TYPE_BLE) {
+            showConnectingDialog()
+        }
         transport.connect(this, this)
+    }
+
+    private fun showConnectingDialog() {
+        if (connectingDialog?.isAdded == true) return
+        val label = bleName ?: bleAddress ?: getString(R.string.unknown_bluetooth_device)
+        val dialog = ConnectingDialogFragment.newInstance(getString(R.string.connecting_to, label))
+        connectingDialog = dialog
+        dialog.show(childFragmentManager, "connecting_dialog")
     }
 
     open fun onConnectionSuccess() {
@@ -94,7 +111,14 @@ abstract class SerialConnectionFragment : Fragment(),
         controlLines.stop()
         connected = false
         transport.disconnect()
+        ConnectionStateRegistry.markDisconnected(connectionKey)
     }
+
+    private val connectionKey: String
+        get() = when (connectionType) {
+            CONNECTION_TYPE_BLE -> ConnectionStateRegistry.bleKey(bleAddress ?: "")
+            else -> ConnectionStateRegistry.usbKey(deviceId, portNum)
+        }
 
     internal open fun read() {
         try {
@@ -161,25 +185,43 @@ abstract class SerialConnectionFragment : Fragment(),
             putBoolean("withIoManager", withIoManager)
             putString("connectionType", connectionType)
             putString("bleAddress", bleAddress)
+            putString("bleName", bleName)
         }
     }
 
     // -- DeviceTransport.Listener --
+    // BLE's BluetoothGattCallback fires on a background Binder thread by default
+    // (unlike USB, which calls back synchronously on whatever thread called
+    // connect() - always the main thread here), so every callback that touches UI
+    // (dialogs, status(), fragment transactions) must hop to the main thread rather
+    // than assume it's already there.
 
     override fun onStatus(message: String) {
-        status(message)
+        mainLooper.post {
+            lastStatusMessage = message
+            status(message)
+        }
     }
 
     override fun onConnected() {
-        status("connected")
-        connected = true
-        controlLines.start()
-        serialNumber = transport.deviceIdentifier
-        onConnectionSuccess()
+        mainLooper.post {
+            status("connected")
+            connected = true
+            controlLines.start()
+            serialNumber = transport.deviceIdentifier
+            ConnectionStateRegistry.markConnected(connectionKey)
+            connectingDialog?.showSuccess(getString(R.string.connected))
+            connectingDialog = null
+            onConnectionSuccess()
+        }
     }
 
     override fun onConnectFailed() {
-        onConnectionFailed()
+        mainLooper.post {
+            connectingDialog?.showFailure(lastStatusMessage.ifBlank { getString(R.string.connection_failed) })
+            connectingDialog = null
+            onConnectionFailed()
+        }
     }
 
     override fun onDataReceived(data: ByteArray) {
@@ -191,9 +233,9 @@ abstract class SerialConnectionFragment : Fragment(),
         mainLooper.post {
             status("connection lost: ${e?.message}")
             disconnect()
+            val reconnectDeviceDialog = ReconnectDeviceDialogFragment.Companion.newInstance()
+            reconnectDeviceDialog.show(childFragmentManager, "reconnect_device_dialog_fragment")
         }
-        val reconnectDeviceDialog = ReconnectDeviceDialogFragment.Companion.newInstance()
-        reconnectDeviceDialog.show(childFragmentManager, "reconnect_device_dialog_fragment")
     }
 
     inner class ControlLines {
