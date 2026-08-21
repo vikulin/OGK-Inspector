@@ -12,7 +12,6 @@
     <string name="bluetooth_scan_failed">Could not start Bluetooth scan</string>
     <string name="close">Close</string>
     <string name="connecting_to">Connecting to %1$s…</string>
-    <string name="connected">Connected</string>
     <string name="connection_failed">Connection failed</string>
     <string name="calibration">Calibration</string>
     <string name="fwhm">Fwhm</string>

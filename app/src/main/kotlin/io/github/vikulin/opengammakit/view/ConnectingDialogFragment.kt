@@ -12,9 +12,8 @@ import io.github.vikulin.opengammakit.R
 
 /**
  * Transient "Connecting…" progress popup shown while a BLE connection attempt is
- * in flight (SerialConnectionFragment.connect()). Updated in place via showSuccess()/
- * showFailure() as the async GATT connection resolves, rather than being torn down
- * and replaced with a different dialog.
+ * in flight (SerialConnectionFragment.connect()). Dismissed immediately on success;
+ * updated in place via showFailure() if the async GATT connection fails instead.
  */
 class ConnectingDialogFragment : DialogFragment() {
 
@@ -46,13 +45,6 @@ class ConnectingDialogFragment : DialogFragment() {
         }
         statusText?.text = arguments?.getString(ARG_MESSAGE)
         return view
-    }
-
-    fun showSuccess(message: String) {
-        if (!isAdded) return
-        progressBar?.visibility = View.GONE
-        statusText?.text = message
-        view?.postDelayed({ dismissSafely() }, 600)
     }
 
     fun showFailure(message: String) {

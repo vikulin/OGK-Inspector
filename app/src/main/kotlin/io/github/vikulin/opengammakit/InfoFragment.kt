@@ -43,7 +43,9 @@ open class InfoFragment() : SerialConnectionFragment() {
     override fun onConnectionSuccess() {
         super.onConnectionSuccess()
         super.setDtr(true)
-        super.send(OpenGammaKitCommands().requestStatus().toByteArray())
+        val command = OpenGammaKitCommands().requestStatus()
+        Log.d("InfoFragment", "Sending status request command: $command")
+        super.send(command.toByteArray())
     }
 
     /**
@@ -52,8 +54,10 @@ open class InfoFragment() : SerialConnectionFragment() {
      *  "temperature":<float>,"pulse_count":<uint>,"cps":<uint>}
      */
     private fun handleStatusMessage(json: String) {
+        Log.d("InfoFragment", "Received message: $json")
         val root = Json.parseToJsonElement(json).jsonObject
         if (root["type"]?.jsonPrimitive?.contentOrNull != "status") {
+            Log.d("InfoFragment", "Ignoring non-status message")
             return
         }
 
@@ -66,6 +70,7 @@ open class InfoFragment() : SerialConnectionFragment() {
 
         deviceInfoList.putAll(statusInfo)
         deviceInfoList["Serial Number"] = serialNumber.toString()
+        Log.d("InfoFragment", "Parsed status: $statusInfo")
         getDeviceInfo(deviceInfoList)
         refresh()
     }
@@ -73,6 +78,7 @@ open class InfoFragment() : SerialConnectionFragment() {
     override fun receive(bytes: ByteArray) {
         if (bytes.isEmpty()) return
         val inputString = bytes.toString(Charsets.UTF_8)
+        Log.d("InfoFragment", "receive() ${bytes.size} bytes: \"$inputString\"")
         for (char in inputString) {
             when (char) {
                 '{' -> {

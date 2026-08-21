@@ -69,6 +69,7 @@ abstract class SerialConnectionFragment : Fragment(),
 
     override fun onResume() {
         super.onResume()
+        Log.d(TAG, "onResume: connected=$connected shouldAttemptConnect=${transport.shouldAttemptConnect()} connectionType=$connectionType")
         if (!connected && transport.shouldAttemptConnect()) {
             mainLooper.post { connect() }
         }
@@ -78,6 +79,13 @@ abstract class SerialConnectionFragment : Fragment(),
         if (connected) {
             status("disconnected")
             disconnect()
+        } else {
+            // A connection attempt may still be in flight (e.g. BLE connectGatt() called
+            // but onConnected() hasn't fired yet). Leaving it dangling here leaks the
+            // BluetoothGatt client registration - Android only allows a handful of those
+            // per app, and exhausting them is a common cause of "gatt status 133" on
+            // later connection attempts.
+            transport.disconnect()
         }
         super.onPause()
     }
@@ -85,6 +93,7 @@ abstract class SerialConnectionFragment : Fragment(),
     abstract fun receive(bytes: ByteArray)
 
     private fun connect() {
+        Log.d(TAG, "connect() called")
         if (connectionType == CONNECTION_TYPE_BLE) {
             showConnectingDialog()
         }
@@ -197,6 +206,7 @@ abstract class SerialConnectionFragment : Fragment(),
     // than assume it's already there.
 
     override fun onStatus(message: String) {
+        Log.d(TAG, "onStatus: $message")
         mainLooper.post {
             lastStatusMessage = message
             status(message)
@@ -204,19 +214,22 @@ abstract class SerialConnectionFragment : Fragment(),
     }
 
     override fun onConnected() {
+        Log.d(TAG, "onConnected")
         mainLooper.post {
             status("connected")
             connected = true
             controlLines.start()
             serialNumber = transport.deviceIdentifier
             ConnectionStateRegistry.markConnected(connectionKey)
-            connectingDialog?.showSuccess(getString(R.string.connected))
+            connectingDialog?.dismissSafely()
             connectingDialog = null
+            Log.d(TAG, "onConnected: calling onConnectionSuccess()")
             onConnectionSuccess()
         }
     }
 
     override fun onConnectFailed() {
+        Log.d(TAG, "onConnectFailed")
         mainLooper.post {
             connectingDialog?.showFailure(lastStatusMessage.ifBlank { getString(R.string.connection_failed) })
             connectingDialog = null
@@ -229,7 +242,7 @@ abstract class SerialConnectionFragment : Fragment(),
     }
 
     override fun onRunError(e: Exception?) {
-        Log.d("SerialConnectionFragment", "onRunError")
+        Log.d(TAG, "onRunError")
         mainLooper.post {
             status("connection lost: ${e?.message}")
             disconnect()
@@ -276,6 +289,7 @@ abstract class SerialConnectionFragment : Fragment(),
     }
 
     companion object {
+        private const val TAG = "SerialConnectionFragment"
         const val CONNECTION_TYPE_USB = "usb"
         const val CONNECTION_TYPE_BLE = "ble"
     }

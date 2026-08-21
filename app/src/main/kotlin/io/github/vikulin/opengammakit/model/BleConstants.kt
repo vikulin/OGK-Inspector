@@ -25,6 +25,15 @@ object BleConstants {
     val CLIENT_CHARACTERISTIC_CONFIG_UUID: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
 
     /**
+     * RF header byte the WESPP profile expects prefixed on every RX-characteristic
+     * write, tagging it as plain data (as opposed to 0x02 CMD / 0x04 FRAGDATA - see
+     * Wurth's Proteus-Connect BLEModules/Proteus/ProteusHeader.ts +
+     * Proteus.ts#formatdatatx()). Outgoing only: this is what the app sends, not
+     * something the device firmware needs to add or strip on its own side.
+     */
+    const val RF_HEADER_TYPE_DATA: Byte = 0x01
+
+    /**
      * Prefix of the Wurth Proteus-III's factory-default BLE advertised (local) name -
      * the firmware doesn't currently set a custom one. Used to filter scan/bonded
      * results down to just the target device instead of every nearby BLE peripheral.
