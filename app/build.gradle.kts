@@ -21,6 +21,7 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -47,7 +48,7 @@ dependencies {
     implementation(libs.androidx.activity)
     implementation(libs.androidx.constraintlayout)
     implementation(libs.usb.serial.for1.android)
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
     implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
     implementation("com.google.android.flexbox:flexbox:3.0.0")
     implementation("org.apache.commons:commons-math3:3.6.1")
