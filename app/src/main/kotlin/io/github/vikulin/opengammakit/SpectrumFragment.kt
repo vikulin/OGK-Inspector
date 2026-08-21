@@ -34,6 +34,10 @@ import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.highlight.Highlight
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import io.github.vikulin.opengammakit.model.OpenGammaKitCommands
 import io.github.vikulin.opengammakit.view.ResolutionMarkerView
 import io.github.vikulin.opengammakit.view.CalibrationDialogFragment
@@ -304,10 +308,8 @@ class SpectrumFragment : SerialConnectionFragment(),
                 // **Reset & Start Chronometer**
                 measureTimer.base = SystemClock.elapsedRealtime() // Reset timer initially
                 measureTimer.start()
-                val resetCommand = OpenGammaKitCommands().resetSpectrum().toByteArray()
-                super.send(resetCommand)
-                val spectrumCommand = OpenGammaKitCommands().setOut("spectrum").toByteArray()
-                super.send(spectrumCommand)
+                val command = OpenGammaKitCommands().requestSpectrum(0).toByteArray()
+                super.send(command)
                 view.keepScreenOn = true
             }
         }
@@ -480,7 +482,7 @@ class SpectrumFragment : SerialConnectionFragment(),
         showCalibrationLimitLines()
         updateDetectedPeaks()
         super.setDtr(true)
-        val command = OpenGammaKitCommands().setOut("spectrum").toByteArray()
+        val command = OpenGammaKitCommands().requestSpectrum(0).toByteArray()
         super.send(command)
     }
 
@@ -932,47 +934,45 @@ class SpectrumFragment : SerialConnectionFragment(),
                 when (measureMode) {
                     SpectrumMeasureMode.Live, SpectrumMeasureMode.Scheduled -> {
                         when (char) {
-                            '[' -> {
+                            '{' -> {
                                 openBraces++
                                 buffer.append(char)
                             }
-                            ']' -> {
+                            '}' -> {
                                 openBraces--
                                 buffer.append(char)
                             }
                             EOF, '\r', '\n' -> {} // Ignore these
                             else -> {
-                                buffer.append(char)
+                                if (openBraces > 0) {
+                                    buffer.append(char)
+                                }
                             }
                         }
                         if (openBraces == 0 && buffer.isNotEmpty()) {
                             try {
-                                val json = Json {
-                                    allowTrailingComma = true
-                                }
-                                val spectrum =
-                                    json.decodeFromString<List<Long>>(buffer.toString())
-                                val counts = spectrum.fold(0L) { acc, num -> acc + num }
-                                Log.d(
-                                    "Test",
-                                    "Spectrum size: ${spectrum.size}, counts: $counts"
-                                )
-                                var energySpectrum = spectrumDataSet.data[deviceSpectrumIndex].
-                                resultData.energySpectrum
-                                energySpectrum.spectrum = spectrum
-                                energySpectrum.validPulseCount =
-                                    spectrum.fold(0L) { acc, num -> acc + num }
-                                energySpectrum.numberOfChannels = spectrum.size
-                                energySpectrum.measurementTime =
-                                    (SystemClock.elapsedRealtime() - measureTimer.base)/1000
-                                //mark spectrum with deviceId
-                                serialNumber?.let {
-                                    spectrumDataSet.data[deviceSpectrumIndex].deviceData.deviceId = it
-                                }
+                                val json = Json { ignoreUnknownKeys = true }
+                                val root = json.parseToJsonElement(buffer.toString()).jsonObject
+                                if (root["type"]?.jsonPrimitive?.contentOrNull == "spectrum") {
+                                    val dataElement = root["data"]
+                                    if (dataElement != null) {
+                                        val entry = json.decodeFromJsonElement<GammaKitEntry>(dataElement)
+                                        Log.d(
+                                            "Test",
+                                            "Spectrum size: ${entry.resultData.energySpectrum.spectrum.size}, " +
+                                                "counts: ${entry.resultData.energySpectrum.validPulseCount}"
+                                        )
+                                        spectrumDataSet.data[deviceSpectrumIndex] = entry
+                                        //mark spectrum with deviceId
+                                        serialNumber?.let {
+                                            spectrumDataSet.data[deviceSpectrumIndex].deviceData.deviceId = it
+                                        }
 
-                                // copy spectrum. TODO apply modifiers and peaks detection
-                                resetSpectrumData(spectrumDataSet)
-                                updateChartSpectrumData()
+                                        // copy spectrum. TODO apply modifiers and peaks detection
+                                        resetSpectrumData(spectrumDataSet)
+                                        updateChartSpectrumData()
+                                    }
+                                }
                             } catch (e: Exception) {
                                 Log.e("Test", "Failed to parse data: ${e.message}")
                                 Log.d("Test", buffer.toString())
@@ -980,7 +980,7 @@ class SpectrumFragment : SerialConnectionFragment(),
                                 buffer.clear()
                             }
                         }
-                        if (openBraces > 1 || openBraces < 0) {
+                        if (openBraces < 0) {
                             Log.e("Test", "openBraces issue: $buffer")
                             buffer.clear() // Discard malformed or incomplete data
                             openBraces = 0
@@ -1071,23 +1071,9 @@ class SpectrumFragment : SerialConnectionFragment(),
 
     override fun onDestroy() {
         super.onDestroy()
-        when(measureMode) {
-            SpectrumMeasureMode.Live, SpectrumMeasureMode.Scheduled  -> {
-                val args = getBundle().apply {
-                    putString("command", "set out off\n")
-                }
-                val fragment: Fragment = SerialCommandFragment()
-                fragment.arguments = args
-                parentFragmentManager.beginTransaction()
-                    .replace(R.id.fragment, fragment, "command")
-                    .addToBackStack(null)
-                    .commit()
-            }
-            SpectrumMeasureMode.Fwhm -> {}
-            SpectrumMeasureMode.Calibration -> {}
-            SpectrumMeasureMode.ReadSpectrumFromDevice -> {}
-            SpectrumMeasureMode.ReadSpectrumFromFile -> {}
-        }
+        // No "stop measuring" command exists in the JSON protocol - per REQUIREMENTS.md
+        // 5.9, continuous measurement is meant to keep running (until low battery or an
+        // explicit app change) rather than stop just because this screen closed.
         saveCalibrationData()
     }
 
@@ -1610,32 +1596,19 @@ class SpectrumFragment : SerialConnectionFragment(),
         measureTimer.base = SystemClock.elapsedRealtime() // Reset timer initially
         measureTimer.start()
 
-        val resetCommand = OpenGammaKitCommands().resetSpectrum().toByteArray()
-        super.send(resetCommand)
-        val spectrumCommand = OpenGammaKitCommands().setOut("spectrum").toByteArray()
-        super.send(spectrumCommand)
-
-        val command = OpenGammaKitCommands().recordStart(time, "test").toByteArray()
+        // Device auto-stops measuring after `time` seconds on its own
+        // (Spectrum_IsMeasuring()'s elapsed-time check) and keeps pushing spectrum
+        // updates the same way "Live" mode receives them, so there's no separate
+        // "stop" or "read back the recording" step needed here anymore.
+        val command = OpenGammaKitCommands().requestSpectrum(time).toByteArray()
         super.send(command)
         // Start tracking progress separately
         startProgressUpdate(time)
 
         lifecycleScope.launch {
-
-            delay(time * 1000L+200L) // Wait for recording time (handled by coroutine)
-            // After recording ends
-            val spectrumOffCommand = OpenGammaKitCommands().setOut("off").toByteArray()
-            super.send(spectrumOffCommand)
-
-            measureMode = SpectrumMeasureMode.ReadSpectrumFromDevice
+            delay(time * 1000L + 200L) // Wait for the device's own auto-stop
             measureTimer.stop() // Stop the Chronometer
-
             measureTimer.base = SystemClock.elapsedRealtime() - (time * 1000L)
-
-            delay(500L) // Wait for command output
-
-            val readCommand = OpenGammaKitCommands().readSpectrum().toByteArray()
-            super.send(readCommand)
             view?.keepScreenOn = false
 
             if (mediaPlayer == null) {

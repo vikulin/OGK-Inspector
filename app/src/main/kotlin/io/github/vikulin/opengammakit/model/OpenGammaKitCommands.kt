@@ -5,6 +5,15 @@ class OpenGammaKitCommands {
     // System_HandleCommand()), as opposed to the legacy text commands below.
     fun requestStatus(): String = "{\"type\":\"command\",\"command\":\"request_status\"}\n"
 
+    /**
+     * Starts (if not already running) a spectrum measurement and requests an immediate
+     * snapshot. durationSeconds=0 means unlimited/"Live" - the device only auto-stops
+     * when a positive duration is given ("Schedule" mode); ongoing updates arrive via
+     * the device's own periodic spectrum push while measuring, not by re-sending this.
+     */
+    fun requestSpectrum(durationSeconds: Long = 0): String =
+        "{\"type\":\"command\",\"command\":\"request_spectrum\",\"data\":{\"duration_seconds\":$durationSeconds}}\n"
+
     fun readSpectrum(): String = "read spectrum\n"
     fun readSettings(): String = "read settings\n"
     fun readInfo(): String = "read info\n"

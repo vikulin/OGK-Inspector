@@ -160,13 +160,10 @@ class DevicesFragment : ListFragment(), SpectrumFileChooserDialogFragment.Choose
                         }
 
                         info.setOnClickListener {
-                            val infoArgs = Bundle(args).apply {
-                                putString("driver", "BLE")
-                                putString("vendor", "-")
-                                putString("product", "-")
-                            }
+                            // InfoFragment fills in Vendor/Product/Device Id itself for BLE,
+                            // based on connectionType - no USB-style placeholders needed here.
                             val fragment: Fragment = InfoFragment()
-                            fragment.arguments = infoArgs
+                            fragment.arguments = Bundle(args)
                             parentFragmentManager.beginTransaction()
                                 .replace(R.id.fragment, fragment, "info")
                                 .addToBackStack(null)

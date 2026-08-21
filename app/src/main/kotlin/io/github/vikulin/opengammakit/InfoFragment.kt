@@ -50,8 +50,11 @@ open class InfoFragment() : SerialConnectionFragment() {
 
     /**
      * Parses a single JSON "status" message (Core/Src/protocol.c Protocol_SerializeStatus()):
-     * {"type":"status","battery_percent":<uint>,"battery_voltage":<uint>,
+     * {"type":"status","vendor":<string>,"product":<string>,"device_id":<string>,
+     *  "serial_number":<string>,"battery_percent":<uint>,"battery_voltage":<uint>,
      *  "temperature":<float>,"pulse_count":<uint>,"cps":<uint>}
+     * vendor/product/device_id are firmware-reported (config.h DEVICE_VENDOR/PRODUCT_NAME/
+     * DEVICE_NAME); serial_number is the STM32's actual hardware unique ID.
      */
     private fun handleStatusMessage(json: String) {
         Log.d("InfoFragment", "Received message: $json")
@@ -62,6 +65,10 @@ open class InfoFragment() : SerialConnectionFragment() {
         }
 
         val statusInfo = LinkedHashMap<String, String>()
+        root["vendor"]?.jsonPrimitive?.contentOrNull?.let { statusInfo["Vendor"] = it }
+        root["product"]?.jsonPrimitive?.contentOrNull?.let { statusInfo["Product"] = it }
+        root["device_id"]?.jsonPrimitive?.contentOrNull?.let { statusInfo["Device Id"] = it }
+        root["serial_number"]?.jsonPrimitive?.contentOrNull?.let { statusInfo["Serial Number"] = it }
         root["battery_percent"]?.jsonPrimitive?.contentOrNull?.let { statusInfo["Battery"] = "$it%" }
         root["battery_voltage"]?.jsonPrimitive?.contentOrNull?.let { statusInfo["Battery Voltage"] = "$it mV" }
         root["temperature"]?.jsonPrimitive?.contentOrNull?.let { statusInfo["Temperature"] = "$it °C" }
@@ -69,7 +76,6 @@ open class InfoFragment() : SerialConnectionFragment() {
         root["cps"]?.jsonPrimitive?.contentOrNull?.let { statusInfo["CPS"] = it }
 
         deviceInfoList.putAll(statusInfo)
-        deviceInfoList["Serial Number"] = serialNumber.toString()
         Log.d("InfoFragment", "Parsed status: $statusInfo")
         getDeviceInfo(deviceInfoList)
         refresh()
@@ -134,14 +140,21 @@ open class InfoFragment() : SerialConnectionFragment() {
 
         val view = inflater.inflate(R.layout.fragment_info, container, false)
         deviceInfoList.putAll(
-            mapOf(
-                "Driver" to (driver ?: "<no driver>"),
-                "Vendor" to (vendorId ?: "Unknown Vendor"),
-                "Product" to (productId ?: "Unknown Product"),
-                "Device Id" to "$deviceId",
-                "Port" to "$portNum",
-                "Baud" to "$baudRate"
-            )
+            if (connectionType == CONNECTION_TYPE_BLE) {
+                // Vendor/Product/Device Id/Serial Number are filled in from the firmware's
+                // status response instead (see handleStatusMessage()) - USB-style
+                // descriptor info doesn't apply to a BLE connection.
+                mapOf("Driver" to "BLE")
+            } else {
+                mapOf(
+                    "Driver" to (driver ?: "<no driver>"),
+                    "Vendor" to (vendorId ?: "Unknown Vendor"),
+                    "Product" to (productId ?: "Unknown Product"),
+                    "Device Id" to "$deviceId",
+                    "Port" to "$portNum",
+                    "Baud" to "$baudRate"
+                )
+            }
         )
 
         listView = view.findViewById(R.id.keyValueListView)

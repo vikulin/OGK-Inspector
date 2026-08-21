@@ -5,6 +5,7 @@ import android.graphics.Color
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -16,6 +17,10 @@ import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import kotlinx.coroutines.*
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -51,18 +56,43 @@ class CounterFragment : SerialConnectionFragment(),
     private lateinit var lineDataSet: LineDataSet
     private var chooseThreshold = false
 
+    // No push-based counts/events stream exists in the JSON protocol (see
+    // REQUIREMENTS.md 6.2's message types), so the live rate is derived from
+    // polling request_status's "cps" field instead.
+    private var statusPollJob: Job? = null
+    private val statusPollIntervalMs = 1000L
+
     override fun onConnectionSuccess() {
         super.onConnectionSuccess()
         loadThreshold()
         setCounterThreshold(threshold)
         super.setDtr(true)
-        val command = OpenGammaKitCommands().setOut("events").toByteArray()
-        super.send(command)
+        startStatusPolling()
     }
 
     override fun onConnectionFailed() {
         super.onConnectionFailed()
         // Add a message here
+    }
+
+    private fun startStatusPolling() {
+        stopStatusPolling()
+        statusPollJob = lifecycleScope.launch {
+            while (isActive) {
+                send(OpenGammaKitCommands().requestStatus().toByteArray())
+                delay(statusPollIntervalMs)
+            }
+        }
+    }
+
+    private fun stopStatusPolling() {
+        statusPollJob?.cancel()
+        statusPollJob = null
+    }
+
+    override fun onDisconnected() {
+        super.onDisconnected()
+        stopStatusPolling()
     }
 
     private fun saveThreshold() {
@@ -77,14 +107,52 @@ class CounterFragment : SerialConnectionFragment(),
         threshold = sharedPreferences.getInt(KEY_THRESHOLD+serialNumber, 9999999) // Default to 9999999 if not set
     }
 
-    override fun receive(bytes: ByteArray) {
-        val message = String(bytes).trim()
-        val regex = """\[(\d+)]""".toRegex()
-        val match = regex.find(message)
+    private val buffer = StringBuilder()
+    private var openBraces = 0
 
-        match?.groups?.get(1)?.value?.toIntOrNull()?.let { count ->
-            requireActivity().runOnUiThread {
-                updateRate(count)
+    /**
+     * Parses a JSON "status" message (Core/Src/protocol.c Protocol_SerializeStatus())
+     * and drives the counts/sec chart from its "cps" field.
+     */
+    override fun receive(bytes: ByteArray) {
+        if (bytes.isEmpty()) return
+        val inputString = bytes.toString(Charsets.UTF_8)
+        for (char in inputString) {
+            when (char) {
+                '{' -> {
+                    openBraces++
+                    buffer.append(char)
+                }
+                '}' -> {
+                    openBraces--
+                    buffer.append(char)
+                }
+                '\r', '\n' -> {} // Ignore these
+                else -> {
+                    if (openBraces > 0) {
+                        buffer.append(char)
+                    }
+                }
+            }
+            if (openBraces == 0 && buffer.isNotEmpty()) {
+                try {
+                    val root = Json { ignoreUnknownKeys = true }.parseToJsonElement(buffer.toString()).jsonObject
+                    if (root["type"]?.jsonPrimitive?.contentOrNull == "status") {
+                        root["cps"]?.jsonPrimitive?.contentOrNull?.toIntOrNull()?.let { rate ->
+                            requireActivity().runOnUiThread {
+                                updateRate(rate)
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e("CounterFragment", "Failed to parse status message: ${e.message}")
+                } finally {
+                    buffer.clear()
+                }
+            }
+            if (openBraces < 0) {
+                buffer.clear()
+                openBraces = 0
             }
         }
     }
